@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "telegram",
+  "version": "${version}",
+  "name": "Telegram",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/telegram/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-datagen": [
+      "xyz.nim.telegram.client.TelegramDataGenerator"
+    ],
+    "client": [
+      "xyz.nim.telegram.client.TelegramClient"
+    ],
+    "main": [
+      "xyz.nim.telegram.Telegram"
+    ]
+  },
+  "mixins": [
+    "telegram.mixins.json",
+    {
+      "config": "telegram.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
