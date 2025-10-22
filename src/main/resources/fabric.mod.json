@@ -1,29 +1,29 @@
 {
   "schemaVersion": 1,
-  "id": "telegram",
+  "id": "telegraph",
   "version": "${version}",
-  "name": "Telegram",
+  "name": "Telegraph",
   "description": "",
   "authors": [],
   "contact": {},
   "license": "All-Rights-Reserved",
-  "icon": "assets/telegram/icon.png",
+  "icon": "assets/telegraph/icon.png",
   "environment": "client",
   "entrypoints": {
     "fabric-datagen": [
-      "xyz.nim.telegram.client.TelegramDataGenerator"
+      "xyz.nim.telegraph.client.TelegraphDataGenerator"
     ],
     "client": [
-      "xyz.nim.telegram.client.TelegramClient"
+      "xyz.nim.telegraph.client.TelegraphClient"
     ],
     "main": [
-      "xyz.nim.telegram.Telegram"
+      "xyz.nim.telegraph.Telegraph"
     ]
   },
   "mixins": [
-    "telegram.mixins.json",
+    "telegraph.mixins.json",
     {
-      "config": "telegram.client.mixins.json",
+      "config": "telegraph.client.mixins.json",
       "environment": "client"
     }
   ],
