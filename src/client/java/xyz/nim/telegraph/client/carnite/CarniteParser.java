@@ -117,8 +117,7 @@ public class CarniteParser {
     
     public static List<String> extractCivAbbreviations(String message) {
         List<String> civs = new ArrayList<>();
-        Pattern pattern = Pattern.compile("\\b[A-Z]{2,4}\\b");
-        Matcher matcher = pattern.matcher(message);
+        Matcher matcher = CarniteConstants.CIV_ABBR_PATTERN.matcher(message);
         
         while (matcher.find()) {
             civs.add(matcher.group());

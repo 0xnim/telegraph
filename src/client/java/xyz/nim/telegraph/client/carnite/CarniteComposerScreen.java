@@ -123,7 +123,9 @@ public class CarniteComposerScreen extends Screen {
             ButtonWidget colorBtn = ButtonWidget.builder(Text.literal(color[1].split("\n")[0]), button -> {
                 selectedBannerColor = color[0];
                 updateColorButtons();
+                // Update both validation and explanation immediately
                 validationResult = CarniteValidator.validate(messageField.getText(), selectedBannerColor);
+                explanationResult = CarniteExplainer.explainMessage(messageField.getText(), selectedBannerColor);
             }).dimensions(rightPanelX, colorY, 180, 18).build();
             
             addDrawableChild(colorBtn);

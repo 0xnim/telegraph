@@ -208,7 +208,7 @@ class CarniteTranslatorTest {
         @DisplayName("Basic OOSV structure")
         void testBasicWordOrder() {
             var result = CarniteTranslator.translate("~rd SF DR atk", "white");
-            assertEquals("Dwarven Republic is attacking raiders at Sunfish.", result.translation());
+            assertEquals("Dwarven Republic is attacking some raiders at Sunfish.", result.translation());
         }
         
         @Test
@@ -357,7 +357,7 @@ class CarniteTranslatorTest {
         @DisplayName("Surrender")
         void testSurrender() {
             var result = CarniteTranslator.translate("CRS: CV; srd", "white");
-            assertEquals("My civilization surrenders to (you) The Crusaders.", result.translation());
+            assertEquals("My civilization, Cannabis Village, surrenders to The Crusaders.", result.translation());
         }
         
         @Test
