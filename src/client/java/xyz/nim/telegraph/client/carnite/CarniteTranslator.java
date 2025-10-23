@@ -198,9 +198,11 @@ public class CarniteTranslator {
                     if (CarniteConstants.isCivAbbreviation(word)) {
                         String civName = CarniteVocabulary.getCivilizationName(word);
                         // In questions, CIV might be direct object or location
-                        // If question is asking about the agent (_|) and CIV is before the question,
-                        // treat CIV as direct object: "CN _| atk" → "Who is attacking CN?"
-                        // Check if there's a question blank after this CIV
+                        // Rules:
+                        //   1. "CN _| atk" - CN is Od (no other objects yet)
+                        //   2. "~dmd CV _| take" - CV is location (already have diamonds as Od)
+                        //   3. "_| CV atk" - CV is location (after question)
+                        
                         boolean hasQuestionAfter = false;
                         for (int j = i + 1; j < tokens.size(); j++) {
                             if (tokens.get(j).type() == CarniteParser.CarniteTokenType.QUESTION_BLANK) {
@@ -209,11 +211,11 @@ public class CarniteTranslator {
                             }
                         }
                         
-                        if (hasQuestionAfter) {
-                            // CIV before question mark: likely direct object
+                        if (hasQuestionAfter && objects.isEmpty()) {
+                            // CIV before question and no objects yet: CIV is direct object
                             objects.add(civName);
                         } else {
-                            // CIV after question or no question in message: location
+                            // CIV after question, or already have objects: location
                             locations.add(civName);
                         }
                         continue;
@@ -299,14 +301,15 @@ public class CarniteTranslator {
         }
         
         // Handle different question word orders:
-        // Blue banner (QUESTION tense) uses present tense: "Who IS attacking?"
-        // Other tenses use past: "Who stole?"
-        boolean usePresentTense = (tense == TenseMode.QUESTION);
+        // Questions use past tense by default per spec Table 3
+        // Blue banner questions also use past (e.g., "Who stole?")
+        boolean usePresentTense = false;
         
         if (isAgentQuestion || questionWord.equals("Which civ/What")) {
             // Who/Which: [Question] [verb-present/past] ...
+            String agent = null;
             if (!agents.isEmpty()) {
-                String agent = agents.get(0);
+                agent = agents.get(0);
                 if (agent.toLowerCase().startsWith("some ")) {
                     agent = "the " + agent.substring(5);
                 }
@@ -314,7 +317,9 @@ public class CarniteTranslator {
             }
             if (verb != null) {
                 if (usePresentTense) {
-                    result.append(" is ").append(verb).append("ing");
+                    // Use proper subject-verb agreement
+                    boolean isPlural = agent != null && (agent.contains("the ") || agent.toLowerCase().contains("some"));
+                    result.append(isPlural ? " are " : " is ").append(getIngForm(verb));
                 } else {
                     String pastForm = getIrregularPast(verb);
                     result.append(" ").append(pastForm);
@@ -322,34 +327,36 @@ public class CarniteTranslator {
             }
         } else if (questionWord.equals("What") && questionPos == 0) {
             // What did/is [agent] [verb/verbing]
-            if (usePresentTense) {
-                result.append(" is");
-            } else {
-                result.append(" did");
-            }
+            String agent = null;
             if (!agents.isEmpty()) {
-                String agent = agents.get(0);
+                agent = agents.get(0);
                 if (agent.toLowerCase().startsWith("some ")) {
                     agent = agent.substring(5);
                 }
+            }
+            
+            if (usePresentTense) {
+                boolean isPlural = agent != null && agent.toLowerCase().contains("raiders");
+                result.append(isPlural ? " are" : " is");
+            } else {
+                result.append(" did");
+            }
+            
+            if (agent != null) {
                 result.append(" ").append(agent);
             }
             if (verb != null) {
                 if (usePresentTense) {
-                    result.append(" ").append(verb).append("ing");
+                    result.append(" ").append(getIngForm(verb));
                 } else {
                     result.append(" ").append(verb);
                 }
             }
         } else {
             // When/Where/Why/How/How many: [Question] did/is [agent] [verb/verbing]
-            if (usePresentTense) {
-                result.append(" is");
-            } else {
-                result.append(" did");
-            }
+            String agent = null;
             if (!agents.isEmpty()) {
-                String agent = agents.get(0);
+                agent = agents.get(0);
                 if (agent.toLowerCase().startsWith("some ")) {
                     if (questionWord.equals("Where")) {
                         agent = "the " + agent.substring(5);
@@ -357,11 +364,21 @@ public class CarniteTranslator {
                         agent = agent.substring(5);
                     }
                 }
+            }
+            
+            if (usePresentTense) {
+                boolean isPlural = agent != null && (agent.contains("raiders") || agent.contains("the "));
+                result.append(isPlural ? " are" : " is");
+            } else {
+                result.append(" did");
+            }
+            
+            if (agent != null) {
                 result.append(" ").append(agent);
             }
             if (verb != null) {
                 if (usePresentTense) {
-                    result.append(" ").append(verb).append("ing");
+                    result.append(" ").append(getIngForm(verb));
                 } else {
                     result.append(" ").append(verb);
                 }
@@ -1315,6 +1332,21 @@ public class CarniteTranslator {
     }
     
     /**
+     * Get -ing form of verb (handles 'e' dropping and 'ie' -> 'ying').
+     */
+    private static String getIngForm(String verb) {
+        if (verb.endsWith("ie")) {
+            // "die" -> "dying", "lie" -> "lying"
+            return verb.substring(0, verb.length() - 2) + "ying";
+        } else if (verb.endsWith("e") && !verb.endsWith("ee")) {
+            // "take" -> "taking", "move" -> "moving", but "see" -> "seeing"
+            return verb.substring(0, verb.length() - 1) + "ing";
+        } else {
+            return verb + "ing";
+        }
+    }
+    
+    /**
      * Parse a noun phrase with quantity, stacks, and properties.
      * Mass nouns are never pluralized.
      */
@@ -1488,18 +1520,7 @@ public class CarniteTranslator {
                     yield verb + "s"; // "surrenders", "accepts"
                 }
                 if (negated) yield "does not " + verb;
-                // Handle special -ing forms
-                String ingForm;
-                if (verb.endsWith("ie")) {
-                    // "die" -> "dying", "lie" -> "lying"
-                    ingForm = verb.substring(0, verb.length() - 2) + "ying";
-                } else if (verb.endsWith("e") && !verb.endsWith("ee")) {
-                    // "move" -> "moving", but "see" -> "seeing"
-                    ingForm = verb.substring(0, verb.length() - 1) + "ing";
-                } else {
-                    ingForm = verb + "ing";
-                }
-                yield "is " + ingForm; // Progressive: "is building", "is dying"
+                yield "is " + getIngForm(verb); // Progressive: "is building", "is dying"
             }
             case PAST -> {
                 if (negated) yield "did not " + verb;
