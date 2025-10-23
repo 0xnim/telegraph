@@ -46,7 +46,7 @@ class CarniteTranslatorTest {
         @DisplayName("Red - Urgent/High Priority")
         void testUrgent() {
             var result = CarniteTranslator.translate("~rd ;", "red");
-            assertEquals("⚠ URGENT: Some raiders are at my civilization!", result.translation());
+            assertEquals("Some raiders are at my civilization!", result.translation());
         }
         
         @Test
@@ -322,14 +322,14 @@ class CarniteTranslatorTest {
         @DisplayName("Raiders urgent alert")
         void testRaidersUrgent() {
             var result = CarniteTranslator.translate("~rd| ;", "red");
-            assertEquals("⚠ URGENT: Some raiders are at my civilization!", result.translation());
+            assertEquals("Some raiders are at my civilization.", result.translation());
         }
         
         @Test
         @DisplayName("Attack announcement")
         void testAttackAnnouncement() {
             var result = CarniteTranslator.translate("~NM,rd| SF DR; atk", "red");
-            assertEquals("⚠ URGENT: Dwarven Republic is attacking the Nowy Madagaskar raiders at Sunfish!", result.translation());
+            assertEquals("Dwarven Republic is attacking the Nowy Madagaskar raiders at Sunfish.", result.translation());
         }
         
         @Test

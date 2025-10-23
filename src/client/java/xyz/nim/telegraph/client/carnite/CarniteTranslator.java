@@ -1060,10 +1060,7 @@ public class CarniteTranslator {
                                            String subject, String verb, boolean hasNegation, TenseMode tense) {
         StringBuilder result = new StringBuilder();
         
-        // Add tense prefix (but not for DECISION/GOAL - those are handled in verb conjugation)
-        if (tense == TenseMode.URGENT) {
-            result.append("⚠ URGENT: ");
-        }
+        // No special prefix for URGENT tense anymore - just use normal conjugation
         
         // Simple case: just indirect object(s) with no Od/V (e.g., ";" alone or "CN:" or "CN&EG")
         if (directObjects.isEmpty() && verb == null && subject == null && !indirectObjects.isEmpty()) {
@@ -1493,17 +1490,29 @@ public class CarniteTranslator {
         
         // Check if this has a civ property (contains space after expansion)
         if (roleName.contains(" ")) {
-            // "Nowy Madagaskar blacksmith" -> possessive form
+            // "NM,smth|5" -> "Nowy Madagaskar's level 5 blacksmith" (singular/specific)
+            // "~NM,rd|" -> "the Nowy Madagaskar raiders" (plural)
             // Find the last space to separate civ name from role
             int lastSpace = roleName.lastIndexOf(" ");
             String civName = roleName.substring(0, lastSpace);
             String role = roleName.substring(lastSpace + 1);
             String roleAgentNoun = toAgentNoun(role);
-            String result = civName + "'s " + roleAgentNoun;
-            if (level != null) {
-                result = civName + "'s level " + level + " " + roleAgentNoun;
+            
+            if (hasPlural) {
+                // Plural: use article form "the Nowy Madagaskar raiders"
+                String result = "the " + civName + " " + pluralize(roleAgentNoun);
+                if (level != null) {
+                    result = "the " + civName + " level " + level + " " + pluralize(roleAgentNoun);
+                }
+                return result;
+            } else {
+                // Singular: use possessive form
+                String result = civName + "'s " + roleAgentNoun;
+                if (level != null) {
+                    result = civName + "'s level " + level + " " + roleAgentNoun;
+                }
+                return result;
             }
-            return result;
         }
         
         // Handle plural agents: ~rd| = "some raiders"
@@ -1568,8 +1577,9 @@ public class CarniteTranslator {
                 yield "might " + verb; // "might attack"
             }
             case URGENT -> {
-                if (negated) yield "IS NOT " + verb.toUpperCase() + "ING";
-                yield "IS " + verb.toUpperCase() + "ING"; // "IS ATTACKING"
+                // Use normal present progressive like PRESENT tense
+                if (negated) yield "is not " + getIngForm(verb);
+                yield "is " + getIngForm(verb); // "is attacking"
             }
             case REQUEST -> {
                 String requestVerb = verb.equals("gear") ? "gear up" : verb;
