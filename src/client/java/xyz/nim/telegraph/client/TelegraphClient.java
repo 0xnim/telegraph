@@ -6,14 +6,12 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
-import xyz.nim.telegraph.client.carnite.trade.TradeComposerScreen;
 
 public class TelegraphClient implements ClientModInitializer {
     
     private static final BannerTracker BANNER_TRACKER = new BannerTracker();
     private static final MapDecorationTracker MAP_DECORATION_TRACKER = new MapDecorationTracker();
     private static KeyBinding openMenuKey;
-    private static KeyBinding openTradeKey;
 
     @Override
     public void onInitializeClient() {
@@ -30,22 +28,9 @@ public class TelegraphClient implements ClientModInitializer {
             "category.telegraph"
         ));
         
-        openTradeKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-            "key.telegraph.open_trade",
-            InputUtil.Type.KEYSYM,
-            GLFW.GLFW_KEY_T,
-            "category.telegraph"
-        ));
-        
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openMenuKey.wasPressed()) {
                 client.setScreen(new MapDecorationsScreen(MAP_DECORATION_TRACKER.getTelegraphChannel()));
-            }
-            
-            while (openTradeKey.wasPressed()) {
-                // Open Trade Composer with your civilization
-                // TODO: Get actual civ name from player data
-                client.setScreen(new TradeComposerScreen(null, "My Civilization"));
             }
         });
     }

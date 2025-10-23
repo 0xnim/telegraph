@@ -1,15 +1,5 @@
 {
   "key.telegraph.open": "Open Telegraph",
   "key.telegraph.open_menu": "Open Map Decorations Menu",
-  "key.telegraph.open_trade": "Open Trade Composer",
-  "category.telegraph": "Telegraph",
-  
-  "screen.telegraph.trade_composer": "Trade Offer",
-  "screen.telegraph.trade_book": "Trade Book",
-  "button.telegraph.new_trade": "+ New Trade",
-  "button.telegraph.view_trade_book": "View Trade Book",
-  "button.telegraph.send_trade": "Send Trade",
-  "button.telegraph.accept_trade": "Accept",
-  "button.telegraph.reject_trade": "Reject",
-  "button.telegraph.counter_trade": "Counter Offer"
+  "category.telegraph": "Telegraph"
 }
