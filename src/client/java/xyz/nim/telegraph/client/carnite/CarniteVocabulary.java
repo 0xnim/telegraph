@@ -67,8 +67,8 @@ public class CarniteVocabulary {
         COMMON_ABBREVIATIONS.put("trd", "trade");
         COMMON_ABBREVIATIONS.put("die", "die");
         COMMON_ABBREVIATIONS.put("kill", "kill");
-        COMMON_ABBREVIATIONS.put("take", "steal");
-        COMMON_ABBREVIATIONS.put("get", "receive");
+        COMMON_ABBREVIATIONS.put("take", "take");
+        COMMON_ABBREVIATIONS.put("get", "get");
         COMMON_ABBREVIATIONS.put("lost", "lost");
         COMMON_ABBREVIATIONS.put("merg", "merge");
         COMMON_ABBREVIATIONS.put("elct", "elect");

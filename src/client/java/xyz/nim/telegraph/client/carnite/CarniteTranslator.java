@@ -280,13 +280,12 @@ public class CarniteTranslator {
         }
         
         // Handle different question word orders:
-        // Who/Which: [Question] [verb-past] [object] [location]
-        // What (object question): [What] did [agent] [verb]  
-        // When/Why/How/How many: [Question] did [agent] [verb] [object] [location]
-        // Where: [Where] did [agent] [verb] [object]
+        // Blue banner (QUESTION tense) uses present tense: "Who IS attacking?"
+        // Other tenses use past: "Who stole?"
+        boolean usePresentTense = (tense == TenseMode.QUESTION);
         
         if (isAgentQuestion || questionWord.equals("Which civ/What")) {
-            // Who/Which: [Question] [verb-past] ...
+            // Who/Which: [Question] [verb-present/past] ...
             if (!agents.isEmpty()) {
                 String agent = agents.get(0);
                 if (agent.toLowerCase().startsWith("some ")) {
@@ -295,12 +294,20 @@ public class CarniteTranslator {
                 result.append(" ").append(agent);
             }
             if (verb != null) {
-                String pastForm = getIrregularPast(verb);
-                result.append(" ").append(pastForm);
+                if (usePresentTense) {
+                    result.append(" is ").append(verb).append("ing");
+                } else {
+                    String pastForm = getIrregularPast(verb);
+                    result.append(" ").append(pastForm);
+                }
             }
         } else if (questionWord.equals("What") && questionPos == 0) {
-            // What did [agent] [verb]
-            result.append(" did");
+            // What did/is [agent] [verb/verbing]
+            if (usePresentTense) {
+                result.append(" is");
+            } else {
+                result.append(" did");
+            }
             if (!agents.isEmpty()) {
                 String agent = agents.get(0);
                 if (agent.toLowerCase().startsWith("some ")) {
@@ -309,11 +316,19 @@ public class CarniteTranslator {
                 result.append(" ").append(agent);
             }
             if (verb != null) {
-                result.append(" ").append(verb);
+                if (usePresentTense) {
+                    result.append(" ").append(verb).append("ing");
+                } else {
+                    result.append(" ").append(verb);
+                }
             }
         } else {
-            // When/Where/Why/How/How many: [Question] did [agent] [verb]
-            result.append(" did");
+            // When/Where/Why/How/How many: [Question] did/is [agent] [verb/verbing]
+            if (usePresentTense) {
+                result.append(" is");
+            } else {
+                result.append(" did");
+            }
             if (!agents.isEmpty()) {
                 String agent = agents.get(0);
                 if (agent.toLowerCase().startsWith("some ")) {
@@ -326,7 +341,11 @@ public class CarniteTranslator {
                 result.append(" ").append(agent);
             }
             if (verb != null) {
-                result.append(" ").append(verb);
+                if (usePresentTense) {
+                    result.append(" ").append(verb).append("ing");
+                } else {
+                    result.append(" ").append(verb);
+                }
             }
         }
         
@@ -796,13 +815,16 @@ public class CarniteTranslator {
                             directObjects.add(civName);
                             continue;
                         } else if (followedByYourCiv) {
-                            // CIV: - will be handled in YOUR_CIV case, skip
+                            // CIV: pattern - this civ is an indirect object (destination)
+                            // "2bld CN:" means "2 builders (Od) to Carnation (Oi)"
+                            indirectObjects.add(civName);
                             continue;
                         } else if (followedByMyCiv) {
-                            // Two patterns:
-                            //   1. "CN ; atk" - CN is Od (direct object), ; is S (my civilization)
-                            //   2. "CRS: CV;" - CV is a label, YOUR_CIV marker present before
-                            // Only add to directObjects if no YOUR_CIV before (pattern 1)
+                            // Multiple patterns when CIV is followed by MY_CIV (;):
+                            //   1. ".dmd CN ; trd" - .dmd is Od, CN is Oi, ; is S → "My civ traded diamonds to CN"
+                            //   2. "CN ; atk" - CN is Od, ; is S → "My civ attacks CN"
+                            //   3. "CRS: CV;" - CV is a label, YOUR_CIV marker present before
+                            
                             boolean hasYourCivBefore = false;
                             for (int j = 0; j < i; j++) {
                                 if (tokens.get(j).type() == CarniteParser.CarniteTokenType.YOUR_CIV) {
@@ -810,11 +832,22 @@ public class CarniteTranslator {
                                     break;
                                 }
                             }
-                            if (!hasYourCivBefore) {
-                                // Pattern 1: CN is Od
+                            
+                            if (hasYourCivBefore) {
+                                // Pattern 3: skip, will be handled in MY_CIV case as label
+                                continue;
+                            }
+                            
+                            // Check if we already have a direct object before this civ
+                            // If yes, then this civ is Oi (indirect object)
+                            // If no, then this civ is Od (direct object)
+                            if (!directObjects.isEmpty()) {
+                                // Pattern 1: We have Od already, so CN is Oi
+                                indirectObjects.add(civName);
+                            } else {
+                                // Pattern 2: No Od yet, so CN is Od
                                 directObjects.add(civName);
                             }
-                            // Pattern 2: skip, will be handled in MY_CIV case
                             continue;
                         } else {
                             // Civ without marker: determine role based on context
@@ -951,11 +984,27 @@ public class CarniteTranslator {
             }
         }
         
-        // Case: Od Oi with no explicit subject/verb (e.g., "~rd| ;" = "some raiders at my civ")
+        // Case: Od Oi with no explicit subject/verb
         if (!directObjects.isEmpty() && !indirectObjects.isEmpty() && subject == null && verb == null) {
             String od = directObjects.get(0);
             String oi = indirectObjects.get(0);
             
+            // REQUEST tense implies "send" verb with "my civilization" as subject
+            // "2bld CN:" with light_blue → "My civilization should send 2 builders to Carnation"
+            if (tense == TenseMode.REQUEST) {
+                result.append("My civilization should send ");
+                result.append(od);
+                // Add destination
+                if (oi.startsWith("to ")) {
+                    result.append(" ").append(oi);
+                } else {
+                    result.append(" to ").append(oi);
+                }
+                result.append(".");
+                return result.toString();
+            }
+            
+            // Default: Od is at Oi (e.g., "~rd| ;" = "some raiders are at my civ")
             result.append(capitalize(od));
             
             // Determine verb "is" or "are" based on plurality
@@ -1034,6 +1083,10 @@ public class CarniteTranslator {
                 result.append("It was decided that ");
                 result.append(subject.toLowerCase());
                 result.append(" will ");
+                result.append(verb);
+            } else if (tense == TenseMode.GOAL && subject.startsWith("My civilization")) {
+                // Special case for GOAL tense: use "My nation's current goal is to"
+                result.append("My nation's current goal is to ");
                 result.append(verb);
             } else {
                 // Handle subject with comma (e.g., "My civilization, Cannabis Village")
@@ -1240,7 +1293,23 @@ public class CarniteTranslator {
             int count = Integer.parseInt(matcher.group(1));
             String item = matcher.group(2);
             String itemName = expandWithProperties(item);
-            // Mass nouns never get pluralized
+            
+            // Check if this is an agent/role noun (builder, miner, etc.) - convert to agent form
+            String agentNoun = toAgentNoun(itemName);
+            boolean isAgentRole = !agentNoun.equals(itemName + "er") || 
+                                  itemName.equals("build") || itemName.equals("mine") || 
+                                  itemName.equals("trade") || itemName.equals("raid");
+            
+            if (isAgentRole) {
+                // This is a role/agent: use agent noun form
+                itemName = agentNoun;
+            }
+            
+            // Pluralize if count > 1 (unless it's a mass noun)
+            if (count > 1 && !CarniteConstants.MASS_NOUNS.contains(itemName)) {
+                itemName = pluralize(itemName);
+            }
+            
             // If hasPlural is true, it means ~ was before the number (e.g., ~16blss,fd)
             if (hasPlural) {
                 return "Around " + count + " " + itemName;
