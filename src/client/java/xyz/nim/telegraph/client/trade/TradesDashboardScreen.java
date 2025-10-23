@@ -80,21 +80,21 @@ public class TradesDashboardScreen extends Screen {
             if (client != null) {
                 client.setScreen(parent);
             }
-        }).dimensions(PANEL_MARGIN, topBarY + PANEL_PADDING, 60, BUTTON_HEIGHT).build();
+        }).dimensions(PANEL_MARGIN + PANEL_PADDING, topBarY + PANEL_PADDING, 60, BUTTON_HEIGHT).build();
         addDrawableChild(backButton);
         
         refreshButton = ButtonWidget.builder(Text.literal("↻ Refresh"), button -> {
             refreshTrades();
-        }).dimensions(PANEL_MARGIN + 65, topBarY + PANEL_PADDING, 70, BUTTON_HEIGHT).build();
+        }).dimensions(PANEL_MARGIN + PANEL_PADDING + 65, topBarY + PANEL_PADDING, 70, BUTTON_HEIGHT).build();
         addDrawableChild(refreshButton);
         
         newTradeButton = ButtonWidget.builder(Text.literal("+ New Trade"), button -> {
             openNewTradeComposer();
-        }).dimensions(PANEL_MARGIN + 140, topBarY + PANEL_PADDING, 90, BUTTON_HEIGHT).build();
+        }).dimensions(PANEL_MARGIN + PANEL_PADDING + 140, topBarY + PANEL_PADDING, 90, BUTTON_HEIGHT).build();
         addDrawableChild(newTradeButton);
         
         int searchWidth = 150;
-        searchField = new TextFieldWidget(textRenderer, width - PANEL_MARGIN - searchWidth, 
+        searchField = new TextFieldWidget(textRenderer, width - PANEL_MARGIN - PANEL_PADDING - searchWidth, 
             topBarY + PANEL_PADDING, searchWidth, BUTTON_HEIGHT, Text.literal("Search"));
         searchField.setPlaceholder(Text.literal("Search trades..."));
         searchField.setChangedListener(text -> {
@@ -263,9 +263,9 @@ public class TradesDashboardScreen extends Screen {
         context.fill(leftPanelX, leftPanelY, leftPanelX + leftPanelWidth, leftPanelY + leftPanelHeight, PANEL_COLOR);
         context.drawBorder(leftPanelX, leftPanelY, leftPanelWidth, leftPanelHeight, PANEL_BORDER_COLOR);
         
-        context.fill(leftPanelX, leftPanelY, leftPanelX + leftPanelWidth, leftPanelY + HEADER_HEIGHT, HEADER_COLOR);
-        context.drawText(textRenderer, "Trade Offers", leftPanelX + PANEL_PADDING, 
-            leftPanelY + PANEL_PADDING + 2, 0xFFFFFFFF, false);
+        context.fill(leftPanelX + PANEL_PADDING, leftPanelY + PANEL_PADDING, leftPanelX + leftPanelWidth - PANEL_PADDING, leftPanelY + PANEL_PADDING + HEADER_HEIGHT, HEADER_COLOR);
+        context.drawText(textRenderer, "Trade Offers", leftPanelX + PANEL_PADDING * 2, 
+            leftPanelY + PANEL_PADDING * 2 + 2, 0xFFFFFFFF, false);
         
         int rightPanelX = leftPanelX + leftPanelWidth + PANEL_MARGIN;
         int rightPanelWidth = width - rightPanelX - PANEL_MARGIN;
@@ -273,9 +273,9 @@ public class TradesDashboardScreen extends Screen {
         context.fill(rightPanelX, leftPanelY, rightPanelX + rightPanelWidth, leftPanelY + leftPanelHeight, PANEL_COLOR);
         context.drawBorder(rightPanelX, leftPanelY, rightPanelWidth, leftPanelHeight, PANEL_BORDER_COLOR);
         
-        context.fill(rightPanelX, leftPanelY, rightPanelX + rightPanelWidth, leftPanelY + HEADER_HEIGHT, HEADER_COLOR);
-        context.drawText(textRenderer, "Trade Details", rightPanelX + PANEL_PADDING, 
-            leftPanelY + PANEL_PADDING + 2, 0xFFFFFFFF, false);
+        context.fill(rightPanelX + PANEL_PADDING, leftPanelY + PANEL_PADDING, rightPanelX + rightPanelWidth - PANEL_PADDING, leftPanelY + PANEL_PADDING + HEADER_HEIGHT, HEADER_COLOR);
+        context.drawText(textRenderer, "Trade Details", rightPanelX + PANEL_PADDING * 2, 
+            leftPanelY + PANEL_PADDING * 2 + 2, 0xFFFFFFFF, false);
         
         super.render(context, mouseX, mouseY, delta);
         
