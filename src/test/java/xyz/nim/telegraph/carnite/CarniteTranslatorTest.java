@@ -46,7 +46,7 @@ class CarniteTranslatorTest {
         @DisplayName("Red - Urgent/High Priority")
         void testUrgent() {
             var result = CarniteTranslator.translate("~rd ;", "red");
-            assertEquals("Some raiders are at my civilization!", result.translation());
+            assertEquals("Some raiders are at my civilization.", result.translation());
         }
         
         @Test
@@ -181,8 +181,8 @@ class CarniteTranslatorTest {
         @Test
         @DisplayName("_ - Content question")
         void testContentQuestion() {
-            var result = CarniteTranslator.translate("_ CN atk", "blue");
-            assertEquals("Who is attacking Carnation?", result.translation());
+            var result = CarniteTranslator.translate("CN _| atk", "blue");
+            assertEquals("Who attacked Carnation?", result.translation());
         }
         
         @Test
@@ -336,7 +336,7 @@ class CarniteTranslatorTest {
         @DisplayName("Election announcement")
         void testElection() {
             var result = CarniteTranslator.translate("Elctn TWC", "white");
-            assertEquals("There is going to be an election at the Twin Cities.", result.translation());
+            assertEquals("There is going to be an election at The Twin Cities.", result.translation());
         }
         
         @Test

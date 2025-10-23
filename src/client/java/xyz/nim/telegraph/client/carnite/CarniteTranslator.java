@@ -1107,6 +1107,28 @@ public class CarniteTranslator {
                 return result.toString();
             }
             
+            // Event nouns use existential "there is" template
+            // "Elctn TWC" → "There is going to be an election at the Twin Cities"
+            if (od.toLowerCase().contains("election") || od.toLowerCase().contains("meeting") || od.toLowerCase().contains("event")) {
+                result.append("There is going to be ");
+                result.append(od.toLowerCase());
+                result.append(" at ").append(oi.startsWith("to ") ? oi.substring(3) : oi);
+                result.append(".");
+                return result.toString();
+            }
+            
+            // Role/agent with location uses possession template
+            // "lib|5 CM" → "Cactus Mountain has a librarian level 5"
+            if (od.contains("librarian") || od.contains("builder") || od.contains("miner") || 
+                od.contains("trader") || od.contains("diplomat") || od.contains("cartographer") ||
+                od.contains("blacksmith") || od.contains("level")) {
+                result.append(capitalize(oi.startsWith("to ") ? oi.substring(3) : oi));
+                result.append(" has ");
+                result.append(od);
+                result.append(".");
+                return result.toString();
+            }
+            
             // Default: Od is at Oi (e.g., "~rd| ;" = "some raiders are at my civ")
             result.append(capitalize(od));
             

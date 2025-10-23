@@ -76,7 +76,7 @@ public class CarniteVocabulary {
         COMMON_ABBREVIATIONS.put("acpt", "accept");
         COMMON_ABBREVIATIONS.put("srd", "surrender");
         COMMON_ABBREVIATIONS.put("mtgm", "metagaming");
-        COMMON_ABBREVIATIONS.put("gear", "gear up");
+        COMMON_ABBREVIATIONS.put("gear", "gear");
         COMMON_ABBREVIATIONS.put("call", "call");
         COMMON_ABBREVIATIONS.put("try", "try");
         COMMON_ABBREVIATIONS.put("snd", "send");
