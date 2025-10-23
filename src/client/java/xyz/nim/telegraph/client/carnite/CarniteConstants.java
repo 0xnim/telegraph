@@ -23,7 +23,7 @@ public final class CarniteConstants {
     public static final Set<String> VERBS = Set.of(
         "attack", "raid", "steal", "take", "give", "trade", "receive", 
         "move", "merge", "elect", "die", "kill", "surrender", "accept",
-        "ally", "build", "mine", "call", "send", "metagaming", "gear"
+        "ally", "build", "mine", "call", "send", "metagaming", "gear", "get"
     );
     
     public static boolean isVerb(String word) {

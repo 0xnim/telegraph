@@ -196,7 +196,26 @@ public class CarniteTranslator {
                     }
                     
                     if (CarniteConstants.isCivAbbreviation(word)) {
-                        locations.add(CarniteVocabulary.getCivilizationName(word));
+                        String civName = CarniteVocabulary.getCivilizationName(word);
+                        // In questions, CIV might be direct object or location
+                        // If question is asking about the agent (_|) and CIV is before the question,
+                        // treat CIV as direct object: "CN _| atk" → "Who is attacking CN?"
+                        // Check if there's a question blank after this CIV
+                        boolean hasQuestionAfter = false;
+                        for (int j = i + 1; j < tokens.size(); j++) {
+                            if (tokens.get(j).type() == CarniteParser.CarniteTokenType.QUESTION_BLANK) {
+                                hasQuestionAfter = true;
+                                break;
+                            }
+                        }
+                        
+                        if (hasQuestionAfter) {
+                            // CIV before question mark: likely direct object
+                            objects.add(civName);
+                        } else {
+                            // CIV after question or no question in message: location
+                            locations.add(civName);
+                        }
                         continue;
                     }
                     
@@ -863,8 +882,19 @@ public class CarniteTranslator {
                             } else if (directObjects.isEmpty()) {
                                 // Pattern 2: No Od yet, so civ is Od
                                 directObjects.add(civName);
+                            } else if (hasAgentBefore) {
+                                // Has agent before: CIV might be S (if right before ;) or location (if not)
+                                // Check if this CIV is immediately before ;
+                                boolean isImmediatelyBeforeSemicolon = (i + 1 < tokens.size() && 
+                                    tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.MY_CIV);
+                                
+                                if (!isImmediatelyBeforeSemicolon) {
+                                    // Not right before ;, so it's a location
+                                    // "~NM,rd| SF DR;" - SF is location, DR will be handled as S
+                                    indirectObjects.add(civName);
+                                }
+                                // else: immediately before ;, will be handled as S in MY_CIV case
                             }
-                            // else: has agent before, civ will be handled as S in MY_CIV case
                             continue;
                         } else {
                             // Civ without marker: determine role based on context
