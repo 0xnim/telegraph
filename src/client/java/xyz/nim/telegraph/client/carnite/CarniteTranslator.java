@@ -202,10 +202,22 @@ public class CarniteTranslator {
                     
                     // Check if agent
                     if (i + 1 < tokens.size() && tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.AGENT) {
-                        String agentPhrase = parseAgentPhrase(word, hasPlural);
+                        // Check for level number after agent marker
+                        String level = null;
+                        if (i + 2 < tokens.size() && tokens.get(i + 2).type() == CarniteParser.CarniteTokenType.WORD) {
+                            String potentialLevel = tokens.get(i + 2).value();
+                            if (potentialLevel.matches("\\d+")) {
+                                level = potentialLevel;
+                            }
+                        }
+                        
+                        String agentPhrase = parseAgentPhrase(word, hasPlural, level);
                         agents.add(agentPhrase);
                         hasPlural = false;
                         i++; // Skip agent marker
+                        if (level != null) {
+                            i++; // Skip level number too
+                        }
                         continue;
                     }
                     
@@ -352,27 +364,71 @@ public class CarniteTranslator {
     
     private static String translateYesNoQuestion(List<CarniteParser.CarniteToken> tokens, TenseMode tense) {
         // Blue banner question: "mtgm FTN" → "Is Fortun metagaming?"
-        // Parse as normal statement but convert to question form
+        // "CN :: ; atk" → "Is my civilization attacking Carnation?"
+        // Parse using Od Oi S V structure, then convert to question form
         
-        List<String> objects = new ArrayList<>();
-        List<String> locations = new ArrayList<>();
+        // First, parse the statement structure to get subject, verb, and objects
+        String statementTranslation = translateStatement(tokens, tense);
+        
+        // If we got a proper statement, try to convert it to yes/no question
+        // Pattern: "Subject verb object" → "Is subject verb+ing object?"
+        
+        List<String> directObjects = new ArrayList<>();
+        List<String> indirectObjects = new ArrayList<>();
+        String subject = null;
         String verb = null;
         boolean hasPlural = false;
         
+        // Re-parse to get the components (same logic as translateStatement)
         for (int i = 0; i < tokens.size(); i++) {
             CarniteParser.CarniteToken token = tokens.get(i);
             
             switch (token.type()) {
                 case PLURAL -> hasPlural = true;
+                case MY_CIV -> {
+                    // ; means my civilization is the subject (if followed by verb)
+                    boolean hasVerbAfter = tokens.stream().skip(i + 1).anyMatch(t -> {
+                        if (t.type() == CarniteParser.CarniteTokenType.WORD) {
+                            String exp = CarniteVocabulary.expand(t.value());
+                            return CarniteConstants.isVerb(exp);
+                        }
+                        return false;
+                    });
+                    if (hasVerbAfter) {
+                        subject = "my civilization";
+                    }
+                }
+                case YOUR_CIV -> {
+                    // Skip :: pattern
+                    if (i + 1 < tokens.size() && tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.YOUR_CIV) {
+                        i++; // Skip second :
+                    }
+                }
                 case WORD -> {
                     String word = token.value();
+                    String expanded = CarniteVocabulary.expand(word);
                     
+                    // Check if it's a civ
                     if (CarniteConstants.isCivAbbreviation(word)) {
-                        locations.add(CarniteVocabulary.getCivilizationName(word));
+                        String civName = CarniteVocabulary.getCivilizationName(word);
+                        // If no subject yet and we have a verb after, civ might be subject
+                        // Otherwise it's an object
+                        if (subject == null && verb == null) {
+                            // Could be subject or object - check context
+                            boolean followedByMyCiv = i + 1 < tokens.size() && 
+                                tokens.stream().skip(i + 1).anyMatch(t -> t.type() == CarniteParser.CarniteTokenType.MY_CIV);
+                            if (followedByMyCiv) {
+                                // "CN ; atk" pattern - CN is object
+                                directObjects.add(civName);
+                            } else {
+                                // "FTN mtgm" pattern - FTN is subject
+                                subject = civName;
+                            }
+                        } else {
+                            directObjects.add(civName);
+                        }
                         continue;
                     }
-                    
-                    String expanded = CarniteVocabulary.expand(word);
                     
                     // Check if verb
                     if (CarniteConstants.isVerb(expanded)) {
@@ -380,41 +436,49 @@ public class CarniteTranslator {
                         continue;
                     }
                     
-                    // Otherwise treat as object/noun
+                    // Otherwise treat as object
                     String nounPhrase = parseNounPhrase(word, hasPlural);
                     if (!nounPhrase.isEmpty()) {
-                        objects.add(nounPhrase);
+                        directObjects.add(nounPhrase);
                         hasPlural = false;
                     }
                 }
             }
         }
         
-        // Build yes/no question: "Is [subject] [verb]ing?"
+        // Build yes/no question: "Is [subject] [verb]ing [object]?"
         StringBuilder result = new StringBuilder();
         
-        if (verb != null) {
-            // "Is Fortun metagaming?"
+        if (subject != null && verb != null) {
             result.append("Is ");
-            if (!locations.isEmpty()) {
-                result.append(locations.get(0));
-            } else if (!objects.isEmpty()) {
-                result.append(objects.get(0));
+            result.append(subject);
+            result.append(" ");
+            result.append(verb);
+            if (!verb.endsWith("ing")) {
+                result.append("ing");
+            }
+            if (!directObjects.isEmpty()) {
+                result.append(" ").append(formatList(directObjects));
+            }
+            result.append("?");
+        } else if (verb != null) {
+            // No explicit subject - use first location/object
+            result.append("Is ");
+            if (subject != null) {
+                result.append(subject);
+            } else if (!directObjects.isEmpty()) {
+                result.append(directObjects.get(0));
             }
             result.append(" ").append(verb);
             if (!verb.endsWith("ing")) {
                 result.append("ing");
             }
             result.append("?");
-        } else if (!objects.isEmpty() && !locations.isEmpty()) {
-            // "Is there X at Y?"
+        } else if (!directObjects.isEmpty()) {
             result.append("Is there ");
-            result.append(objects.get(0));
-            result.append(" at ");
-            result.append(locations.get(0));
+            result.append(directObjects.get(0));
             result.append("?");
         } else {
-            // Fallback
             result.append("Is this true?");
         }
         
@@ -500,6 +564,7 @@ public class CarniteTranslator {
                     //   1. CN ; atk → CN is Od, my civ is S
                     //   2. TWC; elct → TWC is S (the civ speaking)
                     //   3. CRS: CV; srd → CV is label for my civ
+                    //   4. CN :: ; atk → CN is S, :: addresses everyone, ; is Od (my civ)
                     
                     String civBeforeSemicolon = null;
                     if (i > 0 && tokens.get(i - 1).type() == CarniteParser.CarniteTokenType.WORD) {
@@ -512,9 +577,15 @@ public class CarniteTranslator {
                     // Check what comes BEFORE the CIV: if there's a YOUR_CIV marker,
                     // this is "CRS: CV;" pattern = addressing CRS, my civ is CV
                     boolean hasYourCivBefore = false;
+                    boolean hasDoubleYourCivBefore = false;
                     for (int j = 0; j < i; j++) {
                         if (tokens.get(j).type() == CarniteParser.CarniteTokenType.YOUR_CIV) {
                             hasYourCivBefore = true;
+                            // Check if it's :: pattern
+                            if (j + 1 < tokens.size() && 
+                                tokens.get(j + 1).type() == CarniteParser.CarniteTokenType.YOUR_CIV) {
+                                hasDoubleYourCivBefore = true;
+                            }
                             break;
                         }
                     }
@@ -534,19 +605,31 @@ public class CarniteTranslator {
                         (directObjects.stream().anyMatch(obj -> obj.contains(finalCivName)) ||
                          indirectObjects.stream().anyMatch(obj -> obj.contains(finalCivName)));
                     
+                    // Pattern: "CN :: ; atk" - CN is already in directObjects, ; means my civ is S (subject)
+                    // This is the same as "CN ; atk" - the :: doesn't change the grammar
+                    // So this condition is now redundant and handled by the normal logic below
+                    
                     if (civBeforeSemicolon != null) {
-                        if (hasYourCivBefore && hasVerbAfter) {
+                        if (hasYourCivBefore && !hasDoubleYourCivBefore && hasVerbAfter) {
                             // Pattern: CRS: CV; srd
                             // CV is a label/context: "My civilization, Cannabis Village"
                             subject = "My civilization, " + civBeforeSemicolon;
                         } else if (civAlreadyProcessed && hasVerbAfter) {
-                            // Pattern: CN ; atk (CN came first as Od earlier)
+                            // Pattern: CN ; atk (CN came first as Od and was added to directObjects)
                             // CIV was already added as direct object, ; means my civ is subject
                             subject = "My civilization";
                         } else if (hasVerbAfter) {
                             // Pattern: TWC; elct or 170| TWC; elct
                             // CIV is the subject itself (the civ speaking)
-                            subject = civBeforeSemicolon;
+                            // Exception: if the civ is already in directObjects (from "CIV ; verb" pattern)
+                            // then it's Od, not S
+                            final String civName = civBeforeSemicolon; // Need final for lambda
+                            if (directObjects.stream().anyMatch(obj -> obj.contains(civName))) {
+                                // CIV is Od, ; means my civ is S
+                                subject = "My civilization";
+                            } else {
+                                subject = civBeforeSemicolon;
+                            }
                         } else {
                             // No verb after: location/context
                             indirectObjects.add(civBeforeSemicolon);
@@ -562,9 +645,18 @@ public class CarniteTranslator {
                 }
                 
                 case YOUR_CIV -> {
-                    // Check if next token is also YOUR_CIV (:: = "you all")
+                    // Check if next token is also YOUR_CIV (:: = "you all" / "to all civs on this line")
                     if (i + 1 < tokens.size() && tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.YOUR_CIV) {
-                        subject = "You all";
+                        // Pattern: "CN :: ; atk" or "~:| :: gear"
+                        // :: means addressing multiple people/civs - doesn't change grammar
+                        // CN or :| should already be processed by the WORD handler
+                        
+                        // Check for pattern like "~:| :: gear" where we already have ":| " processed
+                        // In this case, "You all" becomes the subject
+                        if (directObjects.stream().anyMatch(obj -> obj.contains("citizen"))) {
+                            subject = "You all";
+                        }
+                        // For "CN :: ; atk", CN is already in directObjects, just skip ::
                         i++; // Skip the second :
                         continue;
                     }
@@ -653,10 +745,18 @@ public class CarniteTranslator {
                     if (CarniteConstants.isCivAbbreviation(word)) {
                         String civName = CarniteVocabulary.getCivilizationName(word);
                         
+                        // SPECIAL CASE: If followed by property marker (,), this is a property phrase like "NM,smth|5"
+                        // Don't treat as standalone civ - let it fall through to property/agent handling below
+                        if (i + 1 < tokens.size() && tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.PROPERTY) {
+                            // Don't continue - fall through to property phrase building
+                        } else {
+                            // Normal civ handling
+                        
                         // Look ahead for markers (not just immediate next token)
                         int k = i + 1;
                         boolean followedByMyCiv = false;
                         boolean followedByYourCiv = false;
+                        boolean followedByDoubleYourCiv = false; // :: pattern
                         
                         while (k < tokens.size()) {
                             var t = tokens.get(k).type();
@@ -666,6 +766,11 @@ public class CarniteTranslator {
                             }
                             if (t == CarniteParser.CarniteTokenType.YOUR_CIV) {
                                 followedByYourCiv = true;
+                                // Check if followed by another YOUR_CIV (:: pattern)
+                                if (k + 1 < tokens.size() && 
+                                    tokens.get(k + 1).type() == CarniteParser.CarniteTokenType.YOUR_CIV) {
+                                    followedByDoubleYourCiv = true;
+                                }
                                 break;
                             }
                             // Stop at hard boundaries
@@ -684,11 +789,32 @@ public class CarniteTranslator {
                             k++;
                         }
                         
-                        if (followedByYourCiv) {
+                        if (followedByDoubleYourCiv) {
+                            // Pattern: "CN :: ; atk" - CN is Od (direct object)
+                            // :: means "to all civs on this line", doesn't affect grammar
+                            // Add CN to directObjects as Od
+                            directObjects.add(civName);
+                            continue;
+                        } else if (followedByYourCiv) {
                             // CIV: - will be handled in YOUR_CIV case, skip
                             continue;
                         } else if (followedByMyCiv) {
-                            // CIV; - The civ name is context/label, ignore it. MY_CIV marker means "my civilization"
+                            // Two patterns:
+                            //   1. "CN ; atk" - CN is Od (direct object), ; is S (my civilization)
+                            //   2. "CRS: CV;" - CV is a label, YOUR_CIV marker present before
+                            // Only add to directObjects if no YOUR_CIV before (pattern 1)
+                            boolean hasYourCivBefore = false;
+                            for (int j = 0; j < i; j++) {
+                                if (tokens.get(j).type() == CarniteParser.CarniteTokenType.YOUR_CIV) {
+                                    hasYourCivBefore = true;
+                                    break;
+                                }
+                            }
+                            if (!hasYourCivBefore) {
+                                // Pattern 1: CN is Od
+                                directObjects.add(civName);
+                            }
+                            // Pattern 2: skip, will be handled in MY_CIV case
                             continue;
                         } else {
                             // Civ without marker: determine role based on context
@@ -705,26 +831,70 @@ public class CarniteTranslator {
                             }
                         }
                         continue;
+                        } // end else (normal civ handling)
                     }
                     
-                    // Check if followed by agent marker FIRST (before checking if verb)
+                    // FIRST: Build property phrase if there's a property marker
+                    // This handles patterns like "NM,smth|5" where we need the full "NM,smth" before checking for |
+                    // Pattern: "NM , smth | 5" should become fullWord = "NM,smth"
+                    String fullWord = word;
+                    if (i + 1 < tokens.size() && tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.PROPERTY) {
+                        StringBuilder propertyPhrase = new StringBuilder(word);
+                        int savedI = i; // Save position in case we need to backtrack
+                        while (i + 1 < tokens.size()) {
+                            if (tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.PROPERTY) {
+                                i++;
+                                propertyPhrase.append(",");
+                            } else if (tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.WORD) {
+                                i++;
+                                propertyPhrase.append(tokens.get(i).value());
+                                // Check if next is another property marker (continue chain)
+                                if (i + 1 < tokens.size() && 
+                                    tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.PROPERTY) {
+                                    continue; // Keep building the chain
+                                } else {
+                                    break; // End of property chain
+                                }
+                            } else {
+                                break; // Not part of property chain
+                            }
+                        }
+                        fullWord = propertyPhrase.toString();
+                    }
+                    
+                    // SECOND: Check if followed by agent marker
                     // This prevents "rd|" from being treated as verb "raid"
                     boolean willBeAgent = i + 1 < tokens.size() && 
                         tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.AGENT;
                     
                     if (hasAgent || willBeAgent) {
                         // This is an agent noun - NOT a verb
-                        String agentPhrase = parseAgentPhrase(word, hasPlural);
+                        // Check if there's a level number after the agent marker
+                        String level = null;
+                        if (willBeAgent && i + 2 < tokens.size() && 
+                            tokens.get(i + 2).type() == CarniteParser.CarniteTokenType.WORD) {
+                            String potentialLevel = tokens.get(i + 2).value();
+                            if (potentialLevel.matches("\\d+")) {
+                                level = potentialLevel;
+                            }
+                        }
+                        
+                        String agentPhrase = parseAgentPhrase(fullWord, hasPlural, level);
                         directObjects.add(agentPhrase);
                         hasPlural = false;
                         hasAgent = false;
-                        if (willBeAgent) i++; // Skip agent marker
+                        if (willBeAgent) {
+                            i++; // Skip agent marker
+                            if (level != null) {
+                                i++; // Skip level number too
+                            }
+                        }
                         continue;
                     }
                     
-                    // Check if this could be a verb (but not if hasPlural - that makes it a noun)
+                    // THIRD: Check if this could be a verb (but not if hasPlural - that makes it a noun)
                     if (!hasPlural && verb == null) {
-                        boolean shouldBeVerb = subject != null || !indirectObjects.isEmpty();
+                        boolean shouldBeVerb = subject != null || !indirectObjects.isEmpty() || !directObjects.isEmpty();
                         
                         // Direct verb match
                         if (shouldBeVerb && CarniteConstants.isVerb(expanded)) {
@@ -740,25 +910,7 @@ public class CarniteTranslator {
                         }
                     }
                     
-                    // Check if followed by property marker to build full phrase
-                    String fullWord = word;
-                    if (i + 1 < tokens.size() && tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.PROPERTY) {
-                        StringBuilder propertyPhrase = new StringBuilder(word);
-                        while (i + 1 < tokens.size() && 
-                               (tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.PROPERTY ||
-                                tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.WORD)) {
-                            i++;
-                            CarniteParser.CarniteToken next = tokens.get(i);
-                            if (next.type() == CarniteParser.CarniteTokenType.PROPERTY) {
-                                propertyPhrase.append(",");
-                            } else {
-                                propertyPhrase.append(next.value());
-                                break;
-                            }
-                        }
-                        fullWord = propertyPhrase.toString();
-                    }
-                    
+                    // FINALLY: Treat as regular noun
                     String nounPhrase = parseNounPhrase(fullWord, hasPlural);
                     if (!nounPhrase.isEmpty()) {
                         directObjects.add(nounPhrase);
@@ -951,6 +1103,23 @@ public class CarniteTranslator {
             return result.toString();
         }
         
+        // Case: Od V (intransitive verb - direct object becomes subject)
+        // e.g., "NM,smth|5 die" = "Nowy Madagaskar's level 5 blacksmith is dying"
+        if (!directObjects.isEmpty() && verb != null && subject == null && indirectObjects.isEmpty()) {
+            String objectAsSubject = capitalize(formatList(directObjects));
+            result.append(objectAsSubject);
+            result.append(" ");
+            result.append(conjugateVerb(verb, objectAsSubject, hasNegation, tense));
+            
+            result.append(tense == TenseMode.URGENT ? "!" : ".");
+            
+            if (tense == TenseMode.CONDITIONAL) {
+                result.append(" Undecided.");
+            }
+            
+            return result.toString();
+        }
+        
         // Case: Just objects (no subject/verb)
         if (!directObjects.isEmpty()) {
             result.append(capitalize(formatList(directObjects))).append(".");
@@ -1115,9 +1284,13 @@ public class CarniteTranslator {
     /**
      * Parse agent phrase (words with | marker).
      */
-    private static String parseAgentPhrase(String word, boolean hasPlural) {
+    private static String parseAgentPhrase(String word, boolean hasPlural, String level) {
         if (CarniteConstants.isNumber(word)) {
-            return "player " + word;
+            String result = "player " + word;
+            if (level != null) {
+                result += " level " + level;
+            }
+            return result;
         }
         
         Matcher matcher = CarniteConstants.NUM_ABBR_PATTERN.matcher(word);
@@ -1127,18 +1300,46 @@ public class CarniteTranslator {
             String role = matcher.group(2);
             String roleName = expandWithProperties(role);
             String agentNoun = toAgentNoun(roleName);
-            return count + " " + (count > 1 ? agentNoun + "s" : agentNoun);
+            String result = count + " " + (count > 1 ? agentNoun + "s" : agentNoun);
+            if (level != null) {
+                result += " level " + level;
+            }
+            return result;
+        }
+        
+        // Handle "NM,smth" property notation - civ name + role
+        String roleName = expandWithProperties(word);
+        String agentNoun = toAgentNoun(roleName);
+        
+        // Check if this has a civ property (contains space after expansion)
+        if (roleName.contains(" ")) {
+            // "Nowy Madagaskar blacksmith" -> possessive form
+            // Find the last space to separate civ name from role
+            int lastSpace = roleName.lastIndexOf(" ");
+            String civName = roleName.substring(0, lastSpace);
+            String role = roleName.substring(lastSpace + 1);
+            String roleAgentNoun = toAgentNoun(role);
+            String result = civName + "'s " + roleAgentNoun;
+            if (level != null) {
+                result = civName + "'s level " + level + " " + roleAgentNoun;
+            }
+            return result;
         }
         
         // Handle plural agents: ~rd| = "some raiders"
-        String expanded = CarniteVocabulary.expand(word);
-        String agentNoun = toAgentNoun(expanded);
-        
         if (hasPlural) {
-            return "Some " + agentNoun + "s";
+            String result = "Some " + agentNoun + "s";
+            if (level != null) {
+                result += " level " + level;
+            }
+            return result;
         }
         
-        return "A " + agentNoun;
+        String result = "A " + agentNoun;
+        if (level != null) {
+            result += " level " + level;
+        }
+        return result;
     }
     
     /**
@@ -1171,7 +1372,18 @@ public class CarniteTranslator {
                     yield verb + "s"; // "surrenders", "accepts"
                 }
                 if (negated) yield "does not " + verb;
-                yield "is " + verb + "ing"; // Progressive: "is building"
+                // Handle special -ing forms
+                String ingForm;
+                if (verb.endsWith("ie")) {
+                    // "die" -> "dying", "lie" -> "lying"
+                    ingForm = verb.substring(0, verb.length() - 2) + "ying";
+                } else if (verb.endsWith("e") && !verb.endsWith("ee")) {
+                    // "move" -> "moving", but "see" -> "seeing"
+                    ingForm = verb.substring(0, verb.length() - 1) + "ing";
+                } else {
+                    ingForm = verb + "ing";
+                }
+                yield "is " + ingForm; // Progressive: "is building", "is dying"
             }
             case PAST -> {
                 if (negated) yield "did not " + verb;
@@ -1221,7 +1433,8 @@ public class CarniteTranslator {
         if (base.equals("library")) return "librarian";
         
         if (base.equals("diplomat") || base.equals("trader") || base.equals("librarian") || 
-            base.equals("builder") || base.equals("miner") || base.equals("raider") || base.equals("attacker")) {
+            base.equals("builder") || base.equals("miner") || base.equals("raider") || base.equals("attacker") ||
+            base.equals("blacksmith") || base.equals("cartographer")) {
             return base;
         }
         

@@ -441,5 +441,61 @@ class CarniteTranslatorTest {
             assertTrue(result.components().contains("2bld"));
             assertTrue(result.components().contains("CN"));
         }
+        
+        @Test
+        @DisplayName("CN :: ; atk with pink should be 'My civ might attack Carnation'")
+        void testCNYouAllMyCivAttack() {
+            var result = CarniteTranslator.translate("CN :: ; atk", "pink");
+            // Pattern: CN is Od (direct object), :: addresses everyone, ; is S (my civ), atk is V
+            // Expected: "My civilization might attack Carnation"
+            String translation = result.translation();
+            
+            // Should have My civilization as subject
+            assertTrue(translation.startsWith("My civilization"), 
+                "Translation should start with 'My civilization', but was: " + translation);
+            // Should have Carnation as object
+            assertTrue(translation.contains("Carnation") || translation.contains("CN"), 
+                "Translation should contain Carnation/CN as object, but was: " + translation);
+        }
+        
+        @Test
+        @DisplayName("CN :: ; atk with blue should be 'Is my civilization attacking Carnation?'")
+        void testCNYouAllMyCivAttackBlue() {
+            var result = CarniteTranslator.translate("CN :: ; atk", "blue");
+            String translation = result.translation();
+            System.out.println("Blue banner translation: " + translation);
+            
+            // Should be a yes/no question
+            assertTrue(translation.startsWith("Is"), 
+                "Translation should start with 'Is' for yes/no question, but was: " + translation);
+            assertTrue(translation.contains("my civilization") || translation.contains("My civilization"), 
+                "Translation should contain 'my civilization' as subject, but was: " + translation);
+            assertTrue(translation.contains("Carnation") || translation.contains("CN"), 
+                "Translation should contain Carnation/CN as object, but was: " + translation);
+            assertTrue(translation.contains("attack"), 
+                "Translation should contain 'attack', but was: " + translation);
+        }
+        
+        @Test
+        @DisplayName("NM,smth|5 die should parse civ property agent with level")
+        void testCivPropertyAgentLevel() {
+            // White - present
+            var white = CarniteTranslator.translate("NM,smth|5 die", "white");
+            System.out.println("White: " + white.translation());
+            assertTrue(white.translation().contains("Nowy Madagaskar") || white.translation().contains("NM"),
+                "Should contain civ name, but was: " + white.translation());
+            assertTrue(white.translation().contains("blacksmith"),
+                "Should contain 'blacksmith', but was: " + white.translation());
+            assertTrue(white.translation().contains("5") || white.translation().contains("level 5"),
+                "Should contain level 5, but was: " + white.translation());
+            assertTrue(white.translation().toLowerCase().contains("dying") || white.translation().toLowerCase().contains("is dying"),
+                "Should contain 'dying', but was: " + white.translation());
+            
+            // Light grey - past
+            var past = CarniteTranslator.translate("NM,smth|5 die", "light_gray");
+            System.out.println("Past: " + past.translation());
+            assertTrue(past.translation().contains("died"),
+                "Should contain 'died', but was: " + past.translation());
+        }
     }
 }
