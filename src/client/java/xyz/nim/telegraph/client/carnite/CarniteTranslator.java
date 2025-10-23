@@ -839,15 +839,32 @@ public class CarniteTranslator {
                             }
                             
                             // Check if we already have a direct object before this civ
-                            // If yes, then this civ is Oi (indirect object)
-                            // If no, then this civ is Od (direct object)
-                            if (!directObjects.isEmpty()) {
-                                // Pattern 1: We have Od already, so CN is Oi
+                            // If yes, then this civ might be Oi OR it might be S (subject)
+                            // Pattern "170| TWC; elct" - 170| is Od, TWC is S (subject), not Oi
+                            // Pattern ".dmd CN ; trd" - .dmd is Od, CN is Oi
+                            // Key: if there's AGENT before the civ, the civ is likely S, not Oi
+                            
+                            boolean hasAgentBefore = false;
+                            for (int j = i - 1; j >= 0; j--) {
+                                if (tokens.get(j).type() == CarniteParser.CarniteTokenType.AGENT) {
+                                    hasAgentBefore = true;
+                                    break;
+                                }
+                                // Stop at ; or : boundaries
+                                if (tokens.get(j).type() == CarniteParser.CarniteTokenType.MY_CIV ||
+                                    tokens.get(j).type() == CarniteParser.CarniteTokenType.YOUR_CIV) {
+                                    break;
+                                }
+                            }
+                            
+                            if (!directObjects.isEmpty() && !hasAgentBefore) {
+                                // Pattern 1: We have Od already, no agent before civ, so civ is Oi
                                 indirectObjects.add(civName);
-                            } else {
-                                // Pattern 2: No Od yet, so CN is Od
+                            } else if (directObjects.isEmpty()) {
+                                // Pattern 2: No Od yet, so civ is Od
                                 directObjects.add(civName);
                             }
+                            // else: has agent before, civ will be handled as S in MY_CIV case
                             continue;
                         } else {
                             // Civ without marker: determine role based on context
