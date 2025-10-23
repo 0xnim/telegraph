@@ -67,7 +67,7 @@ class CarniteTranslatorTest {
         @DisplayName("Blue - Yes/No Question")
         void testQuestion() {
             var result = CarniteTranslator.translate("CN _| atk", "blue");
-            assertEquals("Who is attacking Carnation?", result.translation());
+            assertEquals("Who attacked Carnation?", result.translation());
         }
         
         @Test

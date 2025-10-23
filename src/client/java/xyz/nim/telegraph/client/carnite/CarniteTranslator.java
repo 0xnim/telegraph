@@ -333,8 +333,8 @@ public class CarniteTranslator {
         }
         
         // Handle different question word orders:
-        // Questions use past tense by default per spec Table 3
-        // Blue banner questions also use past (e.g., "Who stole?")
+        // Content questions (_) use past tense by default per spec Table 3
+        // All examples in Table 3 use past: "Who stole", "What did ... steal"
         boolean usePresentTense = false;
         
         if (isAgentQuestion || questionWord.equals("Which civ/What")) {
