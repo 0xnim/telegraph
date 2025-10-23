@@ -13,6 +13,7 @@ public class PersistenceManager {
     private static final String CONFIG_DIR = "config/telegraph";
     private static final String SETTINGS_FILE = "channel_settings.json";
     private static final String MESSAGES_FILE = "messages.json";
+    private static final String CIVILIZATIONS_FILE = "civilizations.json";
     private final Gson gson;
     
     public PersistenceManager() {
@@ -51,6 +52,7 @@ public class PersistenceManager {
                 settingData.put("customName", s.getCustomName());
                 settingData.put("notificationsEnabled", s.isNotificationsEnabled());
                 settingData.put("archived", s.isArchived());
+                settingData.put("showTranslations", s.isShowTranslations());
                 settingData.put("tags", s.getTags());
                 settingData.put("notificationLevel", s.getNotificationLevel().name());
                 
@@ -102,6 +104,9 @@ public class PersistenceManager {
                     }
                     if (settingData.has("archived")) {
                         settings.setArchived(settingData.get("archived").getAsBoolean());
+                    }
+                    if (settingData.has("showTranslations")) {
+                        settings.setShowTranslations(settingData.get("showTranslations").getAsBoolean());
                     }
                     if (settingData.has("tags")) {
                         JsonArray tagsArray = settingData.getAsJsonArray("tags");
@@ -209,6 +214,43 @@ public class PersistenceManager {
             
         } catch (IOException e) {
             System.err.println("Failed to export channel data: " + e.getMessage());
+        }
+    }
+    
+    public void saveCivilizations() {
+        Path configDir = getConfigDir();
+        if (configDir == null) return;
+        
+        Path civsPath = configDir.resolve(CIVILIZATIONS_FILE);
+        
+        try {
+            Map<String, String> civilizations = xyz.nim.telegraph.client.carnite.CarniteVocabulary.getAllCivilizations();
+            String json = gson.toJson(civilizations);
+            Files.writeString(civsPath, json);
+        } catch (IOException e) {
+            System.err.println("Failed to save civilizations: " + e.getMessage());
+        }
+    }
+    
+    public void loadCivilizations() {
+        Path configDir = getConfigDir();
+        if (configDir == null) return;
+        
+        Path civsPath = configDir.resolve(CIVILIZATIONS_FILE);
+        if (!Files.exists(civsPath)) return;
+        
+        try {
+            String json = Files.readString(civsPath);
+            JsonObject civsObj = gson.fromJson(json, JsonObject.class);
+            
+            Map<String, String> civilizations = new HashMap<>();
+            for (Map.Entry<String, JsonElement> entry : civsObj.entrySet()) {
+                civilizations.put(entry.getKey(), entry.getValue().getAsString());
+            }
+            
+            xyz.nim.telegraph.client.carnite.CarniteVocabulary.loadCivilizations(civilizations);
+        } catch (IOException e) {
+            System.err.println("Failed to load civilizations: " + e.getMessage());
         }
     }
 }

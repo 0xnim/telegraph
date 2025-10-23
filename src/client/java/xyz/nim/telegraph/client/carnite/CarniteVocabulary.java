@@ -13,27 +13,8 @@ public class CarniteVocabulary {
     private static final Map<String, String> CIVILIZATION_REGISTRY = new HashMap<>();
     
     static {
-        // Example civilizations for testing - replace with your server's civs
-        // Include "The" in names where grammatically appropriate
-        CIVILIZATION_REGISTRY.put("CN", "Carnation");
-        CIVILIZATION_REGISTRY.put("DR", "Dwarven Republic");
-        CIVILIZATION_REGISTRY.put("NT", "Nautilus");
-        CIVILIZATION_REGISTRY.put("EG", "Eastguard");
-        CIVILIZATION_REGISTRY.put("SF", "Sunfish");
-        CIVILIZATION_REGISTRY.put("NM", "Nowy Madagaskar");
-        CIVILIZATION_REGISTRY.put("CV", "Cannabis Village");
-        CIVILIZATION_REGISTRY.put("IT", "Ithaca");
-        CIVILIZATION_REGISTRY.put("CM", "Cactus Mountain");
-        CIVILIZATION_REGISTRY.put("TWC", "The Twin Cities");
-        CIVILIZATION_REGISTRY.put("FTN", "Fortun");
-        CIVILIZATION_REGISTRY.put("PH", "Promised Home");
-        CIVILIZATION_REGISTRY.put("CSD", "The Crusaders");
-        CIVILIZATION_REGISTRY.put("CRS", "The Crusaders");
-        CIVILIZATION_REGISTRY.put("SH", "Satan's Heaven");
-        CIVILIZATION_REGISTRY.put("SC", "Shallow Cove");
-        CIVILIZATION_REGISTRY.put("OL", "The Ophelian League");
-        CIVILIZATION_REGISTRY.put("SPT", "Sleepytown");
-        CIVILIZATION_REGISTRY.put("RH", "Riverhold");
+        // Civilizations are now managed through the settings UI
+        // No default civilizations - users add their own
         
         // Common abbreviations
         // Common abbreviations
@@ -53,12 +34,64 @@ public class CarniteVocabulary {
         // Resources
         COMMON_ABBREVIATIONS.put("dmd", "diamond");
         COMMON_ABBREVIATIONS.put("irn", "iron");
-        COMMON_ABBREVIATIONS.put("gpdr", "gunpowder");
+        COMMON_ABBREVIATIONS.put("gld", "gold");
+        COMMON_ABBREVIATIONS.put("emrld", "emerald");
+        COMMON_ABBREVIATIONS.put("cl", "coal");
+        COMMON_ABBREVIATIONS.put("cppr", "copper");
+        COMMON_ABBREVIATIONS.put("rdst", "redstone");
+        COMMON_ABBREVIATIONS.put("lps", "lapis");
+        COMMON_ABBREVIATIONS.put("qrtz", "quartz");
+        COMMON_ABBREVIATIONS.put("obsd", "obsidian");
+        COMMON_ABBREVIATIONS.put("nthr", "netherite");
+        COMMON_ABBREVIATIONS.put("prl", "pearl");
+        COMMON_ABBREVIATIONS.put("endr", "ender");
+        
+        // Food
         COMMON_ABBREVIATIONS.put("brd", "bread");
         COMMON_ABBREVIATIONS.put("fd", "food");
+        
+        // Combat & Tools
+        COMMON_ABBREVIATIONS.put("gpdr", "gunpowder");
         COMMON_ABBREVIATIONS.put("bndg", "bandage");
         COMMON_ABBREVIATIONS.put("ench", "enchant");
         COMMON_ABBREVIATIONS.put("swd", "sword");
+        COMMON_ABBREVIATIONS.put("bow", "bow");
+        COMMON_ABBREVIATIONS.put("xbow", "crossbow");
+        COMMON_ABBREVIATIONS.put("arrw", "arrow");
+        COMMON_ABBREVIATIONS.put("armr", "armor");
+        COMMON_ABBREVIATIONS.put("ptn", "potion");
+        COMMON_ABBREVIATIONS.put("heal", "healing");
+        COMMON_ABBREVIATIONS.put("ttm", "totem");
+        COMMON_ABBREVIATIONS.put("eltr", "elytra");
+        COMMON_ABBREVIATIONS.put("shld", "shield");
+        
+        // Armor pieces
+        COMMON_ABBREVIATIONS.put("hlmt", "helmet");
+        COMMON_ABBREVIATIONS.put("chst", "chestplate");
+        COMMON_ABBREVIATIONS.put("lgs", "leggings");
+        COMMON_ABBREVIATIONS.put("bts", "boots");
+        
+        // Tools
+        COMMON_ABBREVIATIONS.put("pck", "pickaxe");
+        COMMON_ABBREVIATIONS.put("ax", "axe");
+        COMMON_ABBREVIATIONS.put("shvl", "shovel");
+        COMMON_ABBREVIATIONS.put("ho", "hoe");
+        COMMON_ABBREVIATIONS.put("shrs", "shears");
+        
+        // Blocks
+        COMMON_ABBREVIATIONS.put("cbbl", "cobblestone");
+        COMMON_ABBREVIATIONS.put("stn", "stone");
+        COMMON_ABBREVIATIONS.put("wd", "wood");
+        COMMON_ABBREVIATIONS.put("wl", "wool");
+        COMMON_ABBREVIATIONS.put("lg", "log");
+        COMMON_ABBREVIATIONS.put("plnk", "plank");
+        COMMON_ABBREVIATIONS.put("stck", "stick");
+        COMMON_ABBREVIATIONS.put("glw", "glowstone");
+        
+        // Misc items
+        COMMON_ABBREVIATIONS.put("bk", "book");
+        COMMON_ABBREVIATIONS.put("ppr", "paper");
+        COMMON_ABBREVIATIONS.put("lthr", "leather");
         COMMON_ABBREVIATIONS.put("acft", "autocrafter");
         
         // Actions
@@ -158,7 +191,62 @@ public class CarniteVocabulary {
         return code.matches("[A-Z]{2,4}") && CIVILIZATION_REGISTRY.containsKey(code.toUpperCase());
     }
     
+    /**
+     * Remove a civilization from the registry.
+     */
+    public static void removeCivilization(String code) {
+        CIVILIZATION_REGISTRY.remove(code.toUpperCase());
+    }
+    
+    /**
+     * Get all registered civilizations.
+     */
+    public static Map<String, String> getAllCivilizations() {
+        return new HashMap<>(CIVILIZATION_REGISTRY);
+    }
+    
+    /**
+     * Clear all civilizations (for testing/reset).
+     */
+    public static void clearCivilizations() {
+        CIVILIZATION_REGISTRY.clear();
+    }
+    
+    /**
+     * Load civilizations from a map (for persistence).
+     */
+    public static void loadCivilizations(Map<String, String> civilizations) {
+        CIVILIZATION_REGISTRY.clear();
+        CIVILIZATION_REGISTRY.putAll(civilizations);
+    }
+    
     public static String abbreviate(String word) {
+        word = word.trim();
+        
+        // Handle compound terms (adjective + noun) like "blessed food"
+        if (word.contains(" ")) {
+            String[] parts = word.split("\\s+");
+            if (parts.length == 2) {
+                String adj = abbreviateSingleWord(parts[0]);
+                String noun = abbreviateSingleWord(parts[1]);
+                return adj + "," + noun;
+            } else if (parts.length > 2) {
+                // Multiple words - abbreviate each
+                StringBuilder result = new StringBuilder();
+                for (int i = 0; i < parts.length - 1; i++) {
+                    result.append(abbreviateSingleWord(parts[i])).append(",");
+                }
+                result.append(abbreviateSingleWord(parts[parts.length - 1]));
+                return result.toString();
+            }
+        }
+        
+        // Single word
+        return abbreviateSingleWord(word);
+    }
+    
+    private static String abbreviateSingleWord(String word) {
+        // Check vocabulary first
         for (Map.Entry<String, String> entry : COMMON_ABBREVIATIONS.entrySet()) {
             if (entry.getValue().equalsIgnoreCase(word)) {
                 return entry.getKey();
@@ -167,10 +255,13 @@ public class CarniteVocabulary {
         
         // Auto-abbreviate by removing vowels
         String result = word.toLowerCase().replaceAll("[aeiou]", "");
+        if (result.isEmpty()) {
+            result = word.toLowerCase();
+        }
         if (result.length() > 4) {
             result = result.substring(0, 4);
-        } else if (result.length() < 2) {
-            result = word.substring(0, Math.min(3, word.length()));
+        } else if (result.length() < 2 && word.length() >= 2) {
+            result = word.substring(0, Math.min(3, word.length())).toLowerCase();
         }
         return result;
     }

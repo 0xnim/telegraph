@@ -11,6 +11,7 @@ public class ChannelSettings {
     private String customName;
     private boolean notificationsEnabled;
     private boolean archived;
+    private boolean showTranslations;
     private List<String> tags;
     private NotificationLevel notificationLevel;
     private CommunicationProtocol protocol;
@@ -27,6 +28,7 @@ public class ChannelSettings {
         this.customName = null;
         this.notificationsEnabled = true;
         this.archived = false;
+        this.showTranslations = true;
         this.tags = new ArrayList<>();
         this.notificationLevel = NotificationLevel.ALL;
         this.protocol = new MapTelegraphProtocol();
@@ -104,5 +106,13 @@ public class ChannelSettings {
     
     public void setChannelType(String channelType) {
         this.channelType = channelType;
+    }
+    
+    public boolean isShowTranslations() {
+        return showTranslations;
+    }
+    
+    public void setShowTranslations(boolean showTranslations) {
+        this.showTranslations = showTranslations;
     }
 }

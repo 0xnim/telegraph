@@ -33,6 +33,7 @@ public class MapDecorationTracker {
         this.persistenceManager = new PersistenceManager();
         
         persistenceManager.loadChannelSettings(telegraphChannel);
+        persistenceManager.loadCivilizations();
     }
     
     public MapDecorationTracker() {

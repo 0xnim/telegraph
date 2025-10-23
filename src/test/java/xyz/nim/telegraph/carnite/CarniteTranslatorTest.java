@@ -3,12 +3,35 @@ package xyz.nim.telegraph.carnite;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.BeforeAll;
 import xyz.nim.telegraph.client.carnite.CarniteTranslator;
+import xyz.nim.telegraph.client.carnite.CarniteVocabulary;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("Carnite Translator")
 class CarniteTranslatorTest {
+    
+    @BeforeAll
+    static void setupCivilizations() {
+        // Initialize test civilizations since we removed defaults
+        CarniteVocabulary.registerCivilization("CN", "Carnation");
+        CarniteVocabulary.registerCivilization("DR", "Dwarven Republic");
+        CarniteVocabulary.registerCivilization("NT", "Nautilus");
+        CarniteVocabulary.registerCivilization("EG", "Eastguard");
+        CarniteVocabulary.registerCivilization("SF", "Sunfish");
+        CarniteVocabulary.registerCivilization("NM", "Nowy Madagaskar");
+        CarniteVocabulary.registerCivilization("CV", "Cannabis Village");
+        CarniteVocabulary.registerCivilization("IT", "Ithaca");
+        CarniteVocabulary.registerCivilization("CM", "Cactus Mountain");
+        CarniteVocabulary.registerCivilization("TWC", "The Twin Cities");
+        CarniteVocabulary.registerCivilization("FTN", "Fortun");
+        CarniteVocabulary.registerCivilization("PH", "Promised Home");
+        CarniteVocabulary.registerCivilization("CRS", "The Crusaders");
+        CarniteVocabulary.registerCivilization("SH", "Satan's Heaven");
+        CarniteVocabulary.registerCivilization("SC", "Shallow Cove");
+        CarniteVocabulary.registerCivilization("OL", "The Ophelian League");
+    }
     
     @Nested
     @DisplayName("Tense Colors")

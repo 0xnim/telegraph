@@ -30,6 +30,7 @@ public class CarniteComposerScreen extends Screen {
     private List<ButtonWidget> templateButtons = new ArrayList<>();
     
     private String selectedBannerColor = "white";
+    private String initialMessage = null;
     private CarniteValidator.ValidationResult validationResult = null;
     private CarniteExplainer.ExplanationResult explanationResult = null;
     private boolean showHelp = false;
@@ -51,6 +52,16 @@ public class CarniteComposerScreen extends Screen {
         this.settings = settings;
     }
     
+    public CarniteComposerScreen(Screen parent, TelegraphChannel channel, int mapId, ChannelSettings settings, String initialMessage, String bannerColor) {
+        super(Text.literal("Carnite Message Composer"));
+        this.parent = parent;
+        this.channel = channel;
+        this.mapId = mapId;
+        this.settings = settings;
+        this.initialMessage = initialMessage;
+        this.selectedBannerColor = bannerColor != null ? bannerColor : "white";
+    }
+    
     @Override
     protected void init() {
         super.init();
@@ -62,6 +73,9 @@ public class CarniteComposerScreen extends Screen {
         messageField = new TextFieldWidget(textRenderer, leftMargin, 40, rightPanelX - leftMargin - 10, 20, Text.literal("Message"));
         messageField.setMaxLength(64);
         messageField.setPlaceholder(Text.literal("Type Carnite message..."));
+        if (initialMessage != null) {
+            messageField.setText(initialMessage);
+        }
         messageField.setChangedListener(text -> {
             validationResult = CarniteValidator.validate(text, selectedBannerColor);
             if (currentMode == ViewMode.LEARN || currentMode == ViewMode.EXPAND) {
@@ -69,6 +83,11 @@ public class CarniteComposerScreen extends Screen {
             }
         });
         addDrawableChild(messageField);
+        
+        if (initialMessage != null) {
+            validationResult = CarniteValidator.validate(initialMessage, selectedBannerColor);
+            explanationResult = CarniteExplainer.explainMessage(initialMessage, selectedBannerColor);
+        }
         
         // Symbol buttons
         int symbolY = 70;
@@ -96,11 +115,14 @@ public class CarniteComposerScreen extends Screen {
         
         // Quick templates
         int templateY = symbolY + 30;
-        addTemplate(leftMargin, templateY, "~rd| ; ", "Raiders at my civ");
-        addTemplate(leftMargin, templateY + 22, "_; _:", "Trade: What I have for what you give");
-        addTemplate(leftMargin, templateY + 44, "^ y", "Response: Yes");
-        addTemplate(leftMargin, templateY + 66, "^ -acpt", "Response: Do not accept");
-        addTemplate(leftMargin, templateY + 88, "_ :: ; atk", "Question: Which of you is attacking us?");
+        addTemplate(leftMargin, templateY, "~rd| ; ", "Raiders at my civ", "red");
+        addTemplate(leftMargin, templateY + 22, ".dmd ; _:", "Trade: stack of diamonds for?", "yellow");
+        addTemplate(leftMargin, templateY + 44, ".brd,32irn ; _:", "Trade: bread+iron for?", "yellow");
+        addTemplate(leftMargin, templateY + 66, "^ y", "Response: Yes", null);
+        addTemplate(leftMargin, templateY + 88, "^ -acpt", "Response: Do not accept", null);
+        addTemplate(leftMargin, templateY + 110, "_ :: ; atk", "Question: Which of you is attacking us?", "blue");
+        addTemplate(leftMargin, templateY + 132, "bld| CN:", "Request: Builder to Carnation", "light_blue");
+        addTemplate(leftMargin, templateY + 154, "lib|5 _:", "Question: Who has lvl 5 librarian?", "blue");
         
         // Banner color selection (right panel)
         int colorY = 40;
@@ -190,11 +212,17 @@ public class CarniteComposerScreen extends Screen {
         if (expandTabButton != null) expandTabButton.active = currentMode != ViewMode.EXPAND;
     }
     
-    private void addTemplate(int x, int y, String template, String description) {
+    private void addTemplate(int x, int y, String template, String description, String bannerColor) {
         ButtonWidget btn = ButtonWidget.builder(Text.literal(template), button -> {
             if (messageField != null) {
                 messageField.setText(template);
             }
+            if (bannerColor != null) {
+                selectedBannerColor = bannerColor;
+                updateColorButtons();
+            }
+            validationResult = CarniteValidator.validate(template, selectedBannerColor);
+            explanationResult = CarniteExplainer.explainMessage(template, selectedBannerColor);
         }).dimensions(x, y, 150, 18).build();
         addDrawableChild(btn);
         templateButtons.add(btn);

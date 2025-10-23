@@ -79,8 +79,15 @@ public class MapDecorationsScreen extends Screen {
             if (selectedMapId != -1 && client != null) {
                 client.setScreen(new ChannelSettingsScreen(this, channel, selectedMapId));
             }
-        }).dimensions(leftPanelX + PANEL_PADDING, bottomButtonY - BUTTON_HEIGHT * 3 - 6, leftPanelWidth - PANEL_PADDING * 2, BUTTON_HEIGHT).build();
+        }).dimensions(leftPanelX + PANEL_PADDING, bottomButtonY - BUTTON_HEIGHT * 4 - 8, leftPanelWidth - PANEL_PADDING * 2, BUTTON_HEIGHT).build();
         addDrawableChild(settingsButton);
+        
+        ButtonWidget globalSettingsButton = ButtonWidget.builder(Text.literal("⚙ Global Settings"), button -> {
+            if (client != null) {
+                client.setScreen(new GlobalSettingsScreen(this));
+            }
+        }).dimensions(leftPanelX + PANEL_PADDING, bottomButtonY - BUTTON_HEIGHT * 3 - 6, leftPanelWidth - PANEL_PADDING * 2, BUTTON_HEIGHT).build();
+        addDrawableChild(globalSettingsButton);
         
         protocolButton = ButtonWidget.builder(Text.literal("Protocol: ..."), button -> {
             if (selectedMapId != -1) {
@@ -133,11 +140,18 @@ public class MapDecorationsScreen extends Screen {
             }
         }).dimensions(rightPanelX + PANEL_PADDING + 150, tabY, 70, BUTTON_HEIGHT).build();
         
+        ButtonWidget tradesButton = ButtonWidget.builder(Text.literal("💰 Trades"), button -> {
+            if (client != null) {
+                client.setScreen(new xyz.nim.telegraph.client.trade.TradesDashboardScreen(this, channel));
+            }
+        }).dimensions(rightPanelX + PANEL_PADDING + 225, tabY, 80, BUTTON_HEIGHT).build();
+        
         addDrawableChild(messagesTabButton);
         addDrawableChild(rawTabButton);
         addDrawableChild(composeButton);
+        addDrawableChild(tradesButton);
         
-        renameField = new TextFieldWidget(textRenderer, rightPanelX + PANEL_PADDING + 230, tabY, 150, BUTTON_HEIGHT, Text.literal("Channel Name"));
+        renameField = new TextFieldWidget(textRenderer, rightPanelX + PANEL_PADDING + 310, tabY, 150, BUTTON_HEIGHT, Text.literal("Channel Name"));
         renameField.setMaxLength(32);
         renameField.setPlaceholder(Text.literal("Enter channel name..."));
         addDrawableChild(renameField);
@@ -150,7 +164,7 @@ public class MapDecorationsScreen extends Screen {
             rightPanelWidth - PANEL_PADDING * 2,
             messageListHeight,
             messageListY,
-            12
+            24
         );
         messageList.setX(rightPanelX + PANEL_PADDING);
         addDrawableChild(messageList);
@@ -362,15 +376,24 @@ public class MapDecorationsScreen extends Screen {
                     String displayText = colorCode + msg.name;
                     
                     String tooltip = null;
+                    String carniteTranslation = null;
+                    
                     if (isCarnite) {
                         xyz.nim.telegraph.client.carnite.CarniteParser.ParsedCarniteMessage parsed = 
                             xyz.nim.telegraph.client.carnite.CarniteParser.parse(msg.name, msg.bannerType);
                         String tense = xyz.nim.telegraph.client.carnite.CarniteParser.getTenseFromColor(msg.bannerType);
                         String expanded = xyz.nim.telegraph.client.carnite.CarniteVocabulary.formatWithExpansion(msg.name);
                         tooltip = "§e" + tense + "\n§7" + expanded;
+                        
+                        // Get English translation if enabled
+                        if (settings.isShowTranslations()) {
+                            xyz.nim.telegraph.client.carnite.CarniteTranslator.TranslationResult translation = 
+                                xyz.nim.telegraph.client.carnite.CarniteTranslator.translate(msg.name, msg.bannerType);
+                            carniteTranslation = translation.translation();
+                        }
                     }
                     
-                    messageList.addMessageEntry(new MessageListWidget.MessageEntry(client, displayText, 0xFFFFFFFF, tooltip));
+                    messageList.addMessageEntry(new MessageListWidget.MessageEntry(client, displayText, 0xFFFFFFFF, tooltip, carniteTranslation));
                 }
             }
         }
@@ -546,24 +569,55 @@ public class MapDecorationsScreen extends Screen {
             private final String message;
             private final int color;
             private final String tooltip;
+            private final String translation;
             private final net.minecraft.client.MinecraftClient client;
             
             public MessageEntry(net.minecraft.client.MinecraftClient client, String message, int color, String tooltip) {
+                this(client, message, color, tooltip, null);
+            }
+            
+            public MessageEntry(net.minecraft.client.MinecraftClient client, String message, int color, String tooltip, String translation) {
                 this.client = client;
                 this.message = message;
                 this.color = color;
                 this.tooltip = tooltip;
+                this.translation = translation;
             }
             
             @Override
             public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
                 context.drawText(client.textRenderer, message, x + 4, y + 2, color, false);
                 
+                // Draw translation below the Carnite message
+                if (translation != null && !translation.isEmpty()) {
+                    String translationPrefix = "  → ";
+                    String truncatedTranslation = translation;
+                    
+                    // Truncate if too long to fit on one line
+                    int maxWidth = entryWidth - 30;
+                    if (client.textRenderer.getWidth(translationPrefix + translation) > maxWidth) {
+                        while (client.textRenderer.getWidth(translationPrefix + truncatedTranslation + "...") > maxWidth && truncatedTranslation.length() > 10) {
+                            truncatedTranslation = truncatedTranslation.substring(0, truncatedTranslation.length() - 1);
+                        }
+                        truncatedTranslation += "...";
+                    }
+                    
+                    context.drawText(client.textRenderer, translationPrefix + truncatedTranslation, x + 4, y + 12, 0xFFAAAAAA, false);
+                }
+                
                 if (hovered && tooltip != null && mouseX >= x && mouseX <= x + entryWidth && mouseY >= y && mouseY <= y + entryHeight) {
                     List<Text> tooltipLines = new ArrayList<>();
                     for (String line : tooltip.split("\n")) {
                         tooltipLines.add(Text.literal(line));
                     }
+                    
+                    // Add full translation to tooltip if it was truncated
+                    if (translation != null && !translation.isEmpty() && client.textRenderer.getWidth("  → " + translation) > (entryWidth - 30)) {
+                        tooltipLines.add(Text.literal(""));
+                        tooltipLines.add(Text.literal("§bFull Translation:"));
+                        tooltipLines.add(Text.literal("§f" + translation));
+                    }
+                    
                     context.drawTooltip(client.textRenderer, tooltipLines, mouseX, mouseY);
                 }
             }
