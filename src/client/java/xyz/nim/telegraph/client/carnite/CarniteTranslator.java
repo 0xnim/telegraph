@@ -91,12 +91,26 @@ public class CarniteTranslator {
         
         List<String> offerings = new ArrayList<>();
         boolean beforeMyCiv = true;
+        boolean isResponse = false;
+        String responseTo = null;
         
         for (int i = 0; i < tokens.size(); i++) {
             CarniteParser.CarniteToken token = tokens.get(i);
             
             if (token.type() == CarniteParser.CarniteTokenType.MY_CIV) {
                 beforeMyCiv = false;
+                continue;
+            }
+            
+            if (token.type() == CarniteParser.CarniteTokenType.RESPONSE) {
+                isResponse = true;
+                // Check if next tokens are CIV:
+                if (i + 1 < tokens.size() && tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.WORD) {
+                    String civCode = tokens.get(i + 1).value();
+                    if (CarniteConstants.isCivAbbreviation(civCode)) {
+                        responseTo = CarniteVocabulary.getCivilizationName(civCode);
+                    }
+                }
                 continue;
             }
             
@@ -108,12 +122,26 @@ public class CarniteTranslator {
             if (beforeMyCiv) {
                 if (token.type() == CarniteParser.CarniteTokenType.STACK && 
                     i + 1 < tokens.size() && tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.WORD) {
+                    // Check if previous token was a number for stack count
+                    int stackCount = 1;
+                    if (i > 0 && tokens.get(i - 1).type() == CarniteParser.CarniteTokenType.WORD) {
+                        String prevWord = tokens.get(i - 1).value();
+                        if (prevWord.matches("\\d+")) {
+                            stackCount = Integer.parseInt(prevWord);
+                            // Remove the number from offerings if it was added
+                            if (!offerings.isEmpty() && offerings.get(offerings.size() - 1).equals(prevWord)) {
+                                offerings.remove(offerings.size() - 1);
+                            }
+                        }
+                    }
+                    
                     String item = tokens.get(i + 1).value();
                     String itemName = CarniteVocabulary.expand(item.replaceAll("\\d+", ""));
                     if (!CarniteConstants.MASS_NOUNS.contains(itemName)) {
                         itemName = pluralize(itemName);
                     }
-                    offerings.add(CarniteConstants.STACK_SIZE + " " + itemName);
+                    String stackWord = stackCount == 1 ? "stack" : "stacks";
+                    offerings.add(stackCount + " " + stackWord + " of " + itemName);
                     i++; // Skip next token
                 } else if (token.type() == CarniteParser.CarniteTokenType.WORD) {
                     String expanded = parseTradeNounPhrase(token.value());
@@ -132,7 +160,11 @@ public class CarniteTranslator {
             result.append(formatList(offerings));
         }
         
-        result.append(". What will you give in return?");
+        if (isResponse && responseTo != null) {
+            result.append(" in response to ").append(responseTo).append("'s previous trade offer.");
+        } else {
+            result.append(". What will you give in return?");
+        }
         
         return result.toString();
     }

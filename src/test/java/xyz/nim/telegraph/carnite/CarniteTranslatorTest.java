@@ -295,7 +295,7 @@ class CarniteTranslatorTest {
         @DisplayName("Simple trade offer")
         void testSimpleTradeOffer() {
             var result = CarniteTranslator.translate(".dmd ; _:", "yellow");
-            assertEquals("My civilization offers 64 diamonds. What will you give in return?", result.translation());
+            assertEquals("My civilization offers 1 stack of diamonds. What will you give in return?", result.translation());
             assertEquals("TRADE_OFFER", result.patternType());
         }
         
@@ -303,7 +303,7 @@ class CarniteTranslatorTest {
         @DisplayName("Complex trade offer")
         void testComplexTradeOffer() {
             var result = CarniteTranslator.translate(".brd,32irn,.bndg ; _:", "yellow");
-            assertEquals("My civilization offers 64 bread, 32 iron, and 64 bandages. What will you give in return?", result.translation());
+            assertEquals("My civilization offers 1 stack of bread, 32 iron, and 1 stack of bandages. What will you give in return?", result.translation());
         }
         
         @Test
