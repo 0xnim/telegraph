@@ -1029,9 +1029,9 @@ public class CarniteTranslator {
         
         // Case: Subject + Verb (e.g., "; mov" = "my civ might move")
         if (subject == null && verb != null && !indirectObjects.isEmpty() && indirectObjects.get(0).equals("my civilization")) {
-            // Special case for GOAL tense: use "My nation" instead of "My civilization"
+            // Special case for GOAL tense: format as goal statement
             if (tense == TenseMode.GOAL) {
-                result.append("My nation's current goal is to ");
+                result.append("My civilization's current goal is to ");
                 result.append(verb);
             } else {
                 result.append("My civilization");
@@ -1085,8 +1085,8 @@ public class CarniteTranslator {
                 result.append(" will ");
                 result.append(verb);
             } else if (tense == TenseMode.GOAL && subject.startsWith("My civilization")) {
-                // Special case for GOAL tense: use "My nation's current goal is to"
-                result.append("My nation's current goal is to ");
+                // Special case for GOAL tense: format as goal statement
+                result.append("My civilization's current goal is to ");
                 result.append(verb);
             } else {
                 // Handle subject with comma (e.g., "My civilization, Cannabis Village")

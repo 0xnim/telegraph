@@ -59,14 +59,14 @@ class CarniteTranslatorTest {
         @Test
         @DisplayName("Black - Opinion/Decision")
         void testDecision() {
-            var result = CarniteTranslator.translate("CN ; dp| snd", "black");
+            var result = CarniteTranslator.translate("dp| CN: ; snd", "black");
             assertEquals("It was decided that my civilization will send a diplomat to Carnation.", result.translation());
         }
         
         @Test
         @DisplayName("Blue - Yes/No Question")
         void testQuestion() {
-            var result = CarniteTranslator.translate("_ CN atk", "blue");
+            var result = CarniteTranslator.translate("CN _| atk", "blue");
             assertEquals("Who is attacking Carnation?", result.translation());
         }
         
@@ -81,7 +81,7 @@ class CarniteTranslatorTest {
         @DisplayName("Purple - Goal/Current Objective")
         void testGoal() {
             var result = CarniteTranslator.translate("acft ; get", "purple");
-            assertEquals("My nation's current goal is to get an autocrafter.", result.translation());
+            assertEquals("My civilization's current goal is to get an autocrafter.", result.translation());
         }
     }
     
