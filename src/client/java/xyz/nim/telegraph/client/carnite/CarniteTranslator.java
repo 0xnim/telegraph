@@ -947,7 +947,17 @@ public class CarniteTranslator {
                             continue;
                         } else {
                             // Civ without marker: determine role based on context
-                            if (subject == null) {
+                            // Check if previous token was & (AND) - if so, add to same list as previous
+                            boolean hasAndBefore = (i > 0 && tokens.get(i - 1).type() == CarniteParser.CarniteTokenType.AND);
+                            
+                            if (hasAndBefore) {
+                                // "CN&EG" - add EG to same list as CN
+                                if (!directObjects.isEmpty()) {
+                                    directObjects.add(civName);
+                                } else {
+                                    indirectObjects.add(civName);
+                                }
+                            } else if (subject == null) {
                                 // First civ: could be Oi or S
                                 if (indirectObjects.isEmpty()) {
                                     indirectObjects.add(civName);
@@ -1023,7 +1033,7 @@ public class CarniteTranslator {
                     
                     // THIRD: Check if this could be a verb (but not if hasPlural - that makes it a noun)
                     if (!hasPlural && verb == null) {
-                        boolean shouldBeVerb = subject != null || !indirectObjects.isEmpty() || !directObjects.isEmpty();
+                        boolean shouldBeVerb = subject != null || !indirectObjects.isEmpty() || !directObjects.isEmpty() || hasNegation;
                         
                         // Direct verb match
                         if (shouldBeVerb && CarniteConstants.isVerb(expanded)) {
