@@ -25,7 +25,7 @@ class CarniteTranslatorTest {
         @DisplayName("Light Gray - Past statement")
         void testPastStatement() {
             var result = CarniteTranslator.translate(".dmd CN ; trd", "light_gray");
-            assertEquals("My civilization traded 1 stack (64) of diamonds to Carnation.", result.translation());
+            assertEquals("My civilization traded 64 diamonds (1 stack) to Carnation.", result.translation());
         }
         
         @Test
@@ -74,7 +74,7 @@ class CarniteTranslatorTest {
         @DisplayName("Yellow - Trade")
         void testTrade() {
             var result = CarniteTranslator.translate(".dmd ; _:", "yellow");
-            assertEquals("My civilization offers 64 diamonds. What will you give in return?", result.translation());
+            assertEquals("My civilization offers 1 stack of diamonds. What will you give in return?", result.translation());
         }
         
         @Test

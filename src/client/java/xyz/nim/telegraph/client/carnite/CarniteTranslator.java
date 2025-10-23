@@ -1116,7 +1116,7 @@ public class CarniteTranslator {
                 result.append(" at ").append(oi);
             }
             
-            result.append(tense == TenseMode.URGENT ? "!" : ".");
+            result.append(".");
             return result.toString();
         }
         
@@ -1257,7 +1257,7 @@ public class CarniteTranslator {
             result.append(" ");
             result.append(conjugateVerb(verb, objectAsSubject, hasNegation, tense));
             
-            result.append(tense == TenseMode.URGENT ? "!" : ".");
+            result.append(".");
             
             if (tense == TenseMode.CONDITIONAL) {
                 result.append(" Undecided.");
@@ -1402,6 +1402,11 @@ public class CarniteTranslator {
             String item = matcher.group(2);
             String itemName = expandWithProperties(item);
             
+            // Check if itemName contains a mass noun (e.g., "blessed food")
+            final String finalItemName = itemName;
+            boolean isMassNoun = CarniteConstants.MASS_NOUNS.stream()
+                .anyMatch(mass -> finalItemName.equals(mass) || finalItemName.endsWith(" " + mass));
+            
             // Check if this is an agent/role noun (builder, miner, etc.) - convert to agent form
             String agentNoun = toAgentNoun(itemName);
             boolean isAgentRole = !agentNoun.equals(itemName + "er") || 
@@ -1414,7 +1419,7 @@ public class CarniteTranslator {
             }
             
             // Pluralize if count > 1 (unless it's a mass noun)
-            if (count > 1 && !CarniteConstants.MASS_NOUNS.contains(itemName)) {
+            if (count > 1 && !isMassNoun) {
                 itemName = pluralize(itemName);
             }
             
@@ -1524,7 +1529,7 @@ public class CarniteTranslator {
             return result;
         }
         
-        String result = "A " + agentNoun;
+        String result = "a " + agentNoun;
         if (level != null) {
             result += " level " + level;
         }
