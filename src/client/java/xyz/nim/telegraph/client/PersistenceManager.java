@@ -2,6 +2,7 @@ package xyz.nim.telegraph.client;
 
 import com.google.gson.*;
 import net.minecraft.client.MinecraftClient;
+import xyz.nim.telegraph.client.carnite.CarniteVocabulary;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -225,7 +226,7 @@ public class PersistenceManager {
         Path civsPath = configDir.resolve(CIVILIZATIONS_FILE);
         
         try {
-            Map<String, String> civilizations = xyz.nim.telegraph.client.carnite.CarniteVocabulary.getAllCivilizations();
+            Map<String, String> civilizations = CarniteVocabulary.getAllCivilizations();
             String json = gson.toJson(civilizations);
             Files.writeString(civsPath, json);
         } catch (IOException e) {
@@ -334,7 +335,7 @@ public class PersistenceManager {
                 civilizations.put(entry.getKey(), entry.getValue().getAsString());
             }
             
-            xyz.nim.telegraph.client.carnite.CarniteVocabulary.loadCivilizations(civilizations);
+            CarniteVocabulary.loadCivilizations(civilizations);
         } catch (IOException e) {
             System.err.println("Failed to load civilizations: " + e.getMessage());
         }

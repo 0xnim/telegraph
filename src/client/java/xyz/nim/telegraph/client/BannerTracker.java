@@ -6,7 +6,6 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.item.map.MapState;
-import net.minecraft.text.Text;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -80,6 +79,9 @@ public class BannerTracker {
     
     private void processMap(ItemStack mapStack) {
         MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.world == null) {
+            return;
+        }
         
         var mapIdComponent = mapStack.get(DataComponentTypes.MAP_ID);
         if (mapIdComponent == null) {

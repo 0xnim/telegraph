@@ -11,9 +11,15 @@ import xyz.nim.telegraph.client.carnite.CarniteVocabulary;
 import java.util.*;
 
 public class GlobalSettingsScreen extends Screen {
-    private static final int PANEL_COLOR = 0xA0000000;
     private static final int PANEL_BORDER_COLOR = 0xFFC0C0C0;
     private static final int HEADER_COLOR = 0xFF222222;
+    private static final int MARGIN_LEFT = 20;
+    private static final int MARGIN_RIGHT = 20;
+    private static final int CONTROL_HEIGHT = 20;
+    private static final int ROW_SPACING = 30;
+    private static final int HEADER_HEIGHT = 30;
+    private static final int START_Y = 40;
+    private static final int BUTTON_WIDTH = 150;
     
     private final Screen parent;
     
@@ -39,12 +45,8 @@ public class GlobalSettingsScreen extends Screen {
             mapRefreshEnabled = tracker.isMapRefreshEnabled();
         }
         
-        int leftMargin = 20;
-        int rightMargin = 20;
-        int panelWidth = width - leftMargin - rightMargin;
-        int startY = 40;
-        
-        int y = startY + 20;
+        int panelWidth = width - MARGIN_LEFT - MARGIN_RIGHT;
+        int y = START_Y + CONTROL_HEIGHT;
         
         // Map Refresh Toggle
         mapRefreshToggle = ButtonWidget.builder(
@@ -56,23 +58,19 @@ public class GlobalSettingsScreen extends Screen {
                 }
                 button.setMessage(Text.literal("Auto Map Refresh: " + (mapRefreshEnabled ? "§aON" : "§cOFF")));
             }
-        ).dimensions(leftMargin, y, 200, 20).build();
+        ).dimensions(MARGIN_LEFT, y, 200, CONTROL_HEIGHT).build();
         addDrawableChild(mapRefreshToggle);
         
-        y += 30;
-        
-        // Civilization Management Section Header
-        int civHeaderY = y;
-        
-        y += 40;
+        y += ROW_SPACING;
+        y += HEADER_HEIGHT + 10;
         
         // Input fields
-        civCodeField = new TextFieldWidget(textRenderer, leftMargin, y, 80, 20, Text.literal("Code"));
+        civCodeField = new TextFieldWidget(textRenderer, MARGIN_LEFT, y, 80, CONTROL_HEIGHT, Text.literal("Code"));
         civCodeField.setMaxLength(4);
         civCodeField.setPlaceholder(Text.literal("Code..."));
         addDrawableChild(civCodeField);
         
-        civNameField = new TextFieldWidget(textRenderer, leftMargin + 85, y, 250, 20, Text.literal("Name"));
+        civNameField = new TextFieldWidget(textRenderer, MARGIN_LEFT + 85, y, 250, CONTROL_HEIGHT, Text.literal("Name"));
         civNameField.setMaxLength(64);
         civNameField.setPlaceholder(Text.literal("Civilization name..."));
         addDrawableChild(civNameField);
@@ -97,10 +95,10 @@ public class GlobalSettingsScreen extends Screen {
                     }
                 }
             }
-        }).dimensions(leftMargin + 340, y, 130, 20).build();
+        }).dimensions(MARGIN_LEFT + 340, y, 130, CONTROL_HEIGHT).build();
         addDrawableChild(addCivButton);
         
-        y += 30;
+        y += ROW_SPACING;
         
         // Civilization list
         int listHeight = height - y - 60;
@@ -111,7 +109,7 @@ public class GlobalSettingsScreen extends Screen {
             y,
             24
         );
-        civList.setX(leftMargin);
+        civList.setX(MARGIN_LEFT);
         addDrawableChild(civList);
         
         updateCivList();
@@ -121,7 +119,7 @@ public class GlobalSettingsScreen extends Screen {
             if (client != null) {
                 client.setScreen(parent);
             }
-        }).dimensions(width / 2 - 75, height - 30, 150, 20).build();
+        }).dimensions(width / 2 - BUTTON_WIDTH / 2, height - ROW_SPACING, BUTTON_WIDTH, CONTROL_HEIGHT).build();
         addDrawableChild(doneButton);
     }
     
@@ -157,31 +155,23 @@ public class GlobalSettingsScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
         
-        int leftMargin = 20;
-        int rightMargin = 20;
-        int panelWidth = width - leftMargin - rightMargin;
-        int startY = 40;
+        int panelWidth = width - MARGIN_LEFT - MARGIN_RIGHT;
         
-        // Title
         context.drawCenteredTextWithShadow(textRenderer, this.title, width / 2, 20, 0xFFFFFFFF);
         
-        int y = startY + 20;
-        
-        // Civilization section panel
+        int y = START_Y + CONTROL_HEIGHT + ROW_SPACING;
         int civHeaderY = y;
-        int civHeaderHeight = 30;
         
-        context.fill(leftMargin, civHeaderY, leftMargin + panelWidth, civHeaderY + civHeaderHeight, HEADER_COLOR);
-        context.drawBorder(leftMargin, civHeaderY, panelWidth, civHeaderHeight, PANEL_BORDER_COLOR);
-        context.drawText(textRenderer, "§eGlobal Civilizations", leftMargin + 8, civHeaderY + 10, 0xFFFFFFFF, false);
+        context.fill(MARGIN_LEFT, civHeaderY, MARGIN_LEFT + panelWidth, civHeaderY + HEADER_HEIGHT, HEADER_COLOR);
+        context.drawBorder(MARGIN_LEFT, civHeaderY, panelWidth, HEADER_HEIGHT, PANEL_BORDER_COLOR);
+        context.drawText(textRenderer, "§eGlobal Civilizations", MARGIN_LEFT + 8, civHeaderY + 10, 0xFFFFFFFF, false);
         
-        // Info text
         y += 120;
         context.drawText(textRenderer, "§7Civilizations are shared across all channels.", 
-            leftMargin + 8, y, 0xFF888888, false);
+            MARGIN_LEFT + 8, y, 0xFF888888, false);
         y += 12;
         context.drawText(textRenderer, "§7Auto Map Refresh: Periodically cycles maps to force server updates (every 60s)", 
-            leftMargin + 8, y, 0xFF888888, false);
+            MARGIN_LEFT + 8, y, 0xFF888888, false);
     }
     
     @Override
@@ -259,10 +249,7 @@ public class GlobalSettingsScreen extends Screen {
             
             @Override
             public boolean mouseClicked(double mouseX, double mouseY, int button) {
-                if (removeButton != null && removeButton.mouseClicked(mouseX, mouseY, button)) {
-                    return true;
-                }
-                return super.mouseClicked(mouseX, mouseY, button);
+                return (removeButton != null && removeButton.mouseClicked(mouseX, mouseY, button)) || super.mouseClicked(mouseX, mouseY, button);
             }
             
             @Override

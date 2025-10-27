@@ -7,7 +7,6 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.item.map.MapState;
-import net.minecraft.text.Text;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -29,6 +28,7 @@ public class MapDecorationTracker {
     private int saveCounter = 0;
     private int refreshCounter = 0;
     private int refreshingMapIndex = -1;
+    private int refreshHoldTicks = 0;
     private ItemStack originalOffhandItem = ItemStack.EMPTY;
     private boolean mapRefreshEnabled = false;
     private static final int SAVE_INTERVAL = 1200;
@@ -117,9 +117,11 @@ public class MapDecorationTracker {
         }
         
         if (refreshingMapIndex >= 0) {
-            refreshingMapIndex = -1;
-            player.getInventory().setStack(PlayerInventory.OFF_HAND_SLOT, originalOffhandItem);
-            originalOffhandItem = ItemStack.EMPTY;
+            if (--refreshHoldTicks <= 0) {
+                refreshingMapIndex = -1;
+                player.getInventory().setStack(PlayerInventory.OFF_HAND_SLOT, originalOffhandItem);
+                originalOffhandItem = ItemStack.EMPTY;
+            }
             return;
         }
         
@@ -132,6 +134,7 @@ public class MapDecorationTracker {
                     originalOffhandItem = player.getInventory().getStack(PlayerInventory.OFF_HAND_SLOT).copy();
                     player.getInventory().setStack(PlayerInventory.OFF_HAND_SLOT, stack.copy());
                     refreshingMapIndex = i;
+                    refreshHoldTicks = MAP_REFRESH_DURATION;
                     break;
                 }
             }
@@ -151,6 +154,9 @@ public class MapDecorationTracker {
     
     private void processMap(ItemStack mapStack) {
         MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.world == null) {
+            return;
+        }
         
         var mapIdComponent = mapStack.get(DataComponentTypes.MAP_ID);
         if (mapIdComponent == null) {
