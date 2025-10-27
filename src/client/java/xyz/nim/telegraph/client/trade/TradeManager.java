@@ -10,6 +10,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class TradeManager {
+    public static boolean TRADES_ENABLED = false;
+    
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d+)");
     private static final Pattern STACK_PATTERN = Pattern.compile("(\\d*)\\.?(\\d*)");
     private static final int STACK_SIZE = 64;

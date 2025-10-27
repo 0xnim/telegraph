@@ -141,10 +141,11 @@ public class MapDecorationsScreen extends Screen {
         }).dimensions(rightPanelX + PANEL_PADDING + 150, tabY, 70, BUTTON_HEIGHT).build();
         
         ButtonWidget tradesButton = ButtonWidget.builder(Text.literal("💰 Trades"), button -> {
-            if (client != null) {
+            if (client != null && xyz.nim.telegraph.client.trade.TradeManager.TRADES_ENABLED) {
                 client.setScreen(new xyz.nim.telegraph.client.trade.TradesDashboardScreen(this, channel));
             }
         }).dimensions(rightPanelX + PANEL_PADDING + 225, tabY, 80, BUTTON_HEIGHT).build();
+        tradesButton.active = xyz.nim.telegraph.client.trade.TradeManager.TRADES_ENABLED;
         
         addDrawableChild(messagesTabButton);
         addDrawableChild(rawTabButton);
