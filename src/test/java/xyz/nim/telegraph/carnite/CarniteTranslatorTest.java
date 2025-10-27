@@ -68,8 +68,43 @@ class CarniteTranslatorTest {
         @Test
         @DisplayName("Red - Urgent/High Priority")
         void testUrgent() {
-            var result = CarniteTranslator.translate("~rd ;", "red");
+            var result = CarniteTranslator.translate("~rd| ;", "red");
             assertEquals("Some raiders are at my civilization.", result.translation());
+        }
+        
+        @Test
+        @DisplayName("Light Gray - Past statement with location")
+        void testPastLocation() {
+            var result = CarniteTranslator.translate("~rd| ;", "light_gray");
+            assertEquals("Some raiders were at my civilization.", result.translation());
+        }
+        
+        @Test
+        @DisplayName("Dark Gray - Future statement with location")
+        void testFutureLocation() {
+            var result = CarniteTranslator.translate("~rd| ;", "dark_gray");
+            assertEquals("Some raiders will be at my civilization.", result.translation());
+        }
+        
+        @Test
+        @DisplayName("Pink - Conditional with location")
+        void testConditionalLocation() {
+            var result = CarniteTranslator.translate("~rd| ;", "pink");
+            assertEquals("Some raiders might be at my civilization. Undecided.", result.translation());
+        }
+        
+        @Test
+        @DisplayName("Light Blue - Request with location")
+        void testRequestLocation() {
+            var result = CarniteTranslator.translate("~rd| ;", "light_blue");
+            assertEquals("My civilization should have some raiders.", result.translation());
+        }
+        
+        @Test
+        @DisplayName("Black - Decision with location")
+        void testDecisionLocation() {
+            var result = CarniteTranslator.translate("~rd| ;", "black");
+            assertEquals("Some raiders decided to be at my civilization.", result.translation());
         }
         
         @Test
@@ -89,8 +124,15 @@ class CarniteTranslatorTest {
         @Test
         @DisplayName("Blue - Yes/No Question")
         void testQuestion() {
-            var result = CarniteTranslator.translate("CN _| atk", "blue");
-            assertEquals("Who attacked Carnation?", result.translation());
+            var result = CarniteTranslator.translate("mtgm FTN", "blue");
+            assertEquals("Is Fortun metagaming?", result.translation());
+        }
+        
+        @Test
+        @DisplayName("Blue - Yes/No Question with location")
+        void testQuestionWithLocation() {
+            var result = CarniteTranslator.translate("lib|5 CN:", "blue");
+            assertEquals("Is there a level 5 librarian at Carnation?", result.translation());
         }
         
         @Test
@@ -245,7 +287,8 @@ class CarniteTranslatorTest {
         @DisplayName("Implied 'is' statement")
         void testImpliedIs() {
             var result = CarniteTranslator.translate("lib|5 CM", "white");
-            assertEquals("Cactus Mountain has a librarian level 5.", result.translation());
+            // Grammar-based: lib|5 is Od (agent), CM is Oi (location)
+            assertEquals("A level 5 librarian is at Cactus Mountain.", result.translation());
         }
     }
     
@@ -359,7 +402,7 @@ class CarniteTranslatorTest {
         @DisplayName("Election announcement")
         void testElection() {
             var result = CarniteTranslator.translate("Elctn TWC", "white");
-            assertEquals("There is going to be an election at The Twin Cities.", result.translation());
+            assertEquals("An election is at The Twin Cities.", result.translation());
         }
         
         @Test

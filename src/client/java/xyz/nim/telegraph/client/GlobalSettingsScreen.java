@@ -21,7 +21,9 @@ public class GlobalSettingsScreen extends Screen {
     private TextFieldWidget civNameField;
     private ButtonWidget addCivButton;
     private ButtonWidget doneButton;
+    private ButtonWidget mapRefreshToggle;
     private CivilizationListWidget civList;
+    private boolean mapRefreshEnabled = false;
     
     public GlobalSettingsScreen(Screen parent) {
         super(Text.literal("Global Telegraph Settings"));
@@ -32,12 +34,32 @@ public class GlobalSettingsScreen extends Screen {
     protected void init() {
         super.init();
         
+        MapDecorationTracker tracker = TelegraphClient.getMapDecorationTracker();
+        if (tracker != null) {
+            mapRefreshEnabled = tracker.isMapRefreshEnabled();
+        }
+        
         int leftMargin = 20;
         int rightMargin = 20;
         int panelWidth = width - leftMargin - rightMargin;
         int startY = 40;
         
         int y = startY + 20;
+        
+        // Map Refresh Toggle
+        mapRefreshToggle = ButtonWidget.builder(
+            Text.literal("Auto Map Refresh: " + (mapRefreshEnabled ? "§aON" : "§cOFF")),
+            button -> {
+                mapRefreshEnabled = !mapRefreshEnabled;
+                if (tracker != null) {
+                    tracker.setMapRefreshEnabled(mapRefreshEnabled);
+                }
+                button.setMessage(Text.literal("Auto Map Refresh: " + (mapRefreshEnabled ? "§aON" : "§cOFF")));
+            }
+        ).dimensions(leftMargin, y, 200, 20).build();
+        addDrawableChild(mapRefreshToggle);
+        
+        y += 30;
         
         // Civilization Management Section Header
         int civHeaderY = y;
@@ -156,7 +178,10 @@ public class GlobalSettingsScreen extends Screen {
         // Info text
         y += 120;
         context.drawText(textRenderer, "§7Civilizations are shared across all channels.", 
-            leftMargin, y, 0xFF888888, false);
+            leftMargin + 8, y, 0xFF888888, false);
+        y += 12;
+        context.drawText(textRenderer, "§7Auto Map Refresh: Periodically cycles maps to force server updates (every 60s)", 
+            leftMargin + 8, y, 0xFF888888, false);
     }
     
     @Override

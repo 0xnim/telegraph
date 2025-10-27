@@ -452,6 +452,7 @@ public class CarniteTranslator {
     private static String translateYesNoQuestion(List<CarniteParser.CarniteToken> tokens, TenseMode tense) {
         // Blue banner question: "mtgm FTN" → "Is Fortun metagaming?"
         // "CN :: ; atk" → "Is my civilization attacking Carnation?"
+        // "lib|5 CN:" → "Is there a level 5 librarian at Carnation?"
         // Parse using Od Oi S V structure, then convert to question form
         
         // First, parse the statement structure to get subject, verb, and objects
@@ -486,24 +487,67 @@ public class CarniteTranslator {
                     }
                 }
                 case YOUR_CIV -> {
+                    // Check for previous token to determine if this is a location marker
+                    boolean hasWordBefore = i > 0 && tokens.get(i - 1).type() == CarniteParser.CarniteTokenType.WORD;
+                    if (hasWordBefore) {
+                        String prevWord = tokens.get(i - 1).value();
+                        if (CarniteConstants.isCivAbbreviation(prevWord)) {
+                            String civName = CarniteVocabulary.getCivilizationName(prevWord);
+                            indirectObjects.add(civName);
+                            directObjects.remove(civName);
+                        }
+                    }
                     // Skip :: pattern
                     if (i + 1 < tokens.size() && tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.YOUR_CIV) {
                         i++; // Skip second :
+                    }
+                }
+                case AGENT -> {
+                    // Handle agent phrases: lib|5 → "level 5 librarian"
+                    if (i > 0 && tokens.get(i - 1).type() == CarniteParser.CarniteTokenType.WORD) {
+                        String prevWord = tokens.get(i - 1).value();
+                        String level = null;
+                        
+                        // Check for level number after agent marker
+                        if (i + 1 < tokens.size() && tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.WORD) {
+                            String nextWord = tokens.get(i + 1).value();
+                            if (nextWord.matches("\\d+")) {
+                                level = nextWord;
+                                i++; // Skip the level token
+                            }
+                        }
+                        
+                        String agentPhrase = parseAgentPhrase(prevWord, hasPlural, level);
+                        // Remove the raw word that was added, replace with agent phrase
+                        if (!directObjects.isEmpty() && directObjects.get(directObjects.size() - 1).contains(CarniteVocabulary.expand(prevWord))) {
+                            directObjects.remove(directObjects.size() - 1);
+                        }
+                        directObjects.add(agentPhrase);
+                        hasPlural = false;
                     }
                 }
                 case WORD -> {
                     String word = token.value();
                     String expanded = CarniteVocabulary.expand(word);
                     
+                    // Skip if it's a level number (handled by AGENT case)
+                    if (i > 0 && tokens.get(i - 1).type() == CarniteParser.CarniteTokenType.AGENT && word.matches("\\d+")) {
+                        continue;
+                    }
+                    
                     // Check if it's a civ
                     if (CarniteConstants.isCivAbbreviation(word)) {
                         String civName = CarniteVocabulary.getCivilizationName(word);
-                        // If no subject yet and we have a verb after, civ might be subject
-                        // Otherwise it's an object
-                        if (subject == null && verb == null) {
+                        // Check if followed by : (your civ marker)
+                        boolean followedByYourCiv = i + 1 < tokens.size() && 
+                            tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.YOUR_CIV;
+                        
+                        if (followedByYourCiv) {
+                            // Will be handled by YOUR_CIV case - add as temp object for now
+                            directObjects.add(civName);
+                        } else if (subject == null && verb == null) {
                             // Could be subject or object - check context
-                            boolean followedByMyCiv = i + 1 < tokens.size() && 
-                                tokens.stream().skip(i + 1).anyMatch(t -> t.type() == CarniteParser.CarniteTokenType.MY_CIV);
+                            boolean followedByMyCiv = tokens.stream().skip(i + 1).anyMatch(t -> t.type() == CarniteParser.CarniteTokenType.MY_CIV);
                             if (followedByMyCiv) {
                                 // "CN ; atk" pattern - CN is object
                                 directObjects.add(civName);
@@ -520,6 +564,11 @@ public class CarniteTranslator {
                     // Check if verb
                     if (CarniteConstants.isVerb(expanded)) {
                         verb = expanded;
+                        continue;
+                    }
+                    
+                    // Skip if followed by agent marker (will be handled by AGENT case)
+                    if (i + 1 < tokens.size() && tokens.get(i + 1).type() == CarniteParser.CarniteTokenType.AGENT) {
                         continue;
                     }
                     
@@ -547,6 +596,9 @@ public class CarniteTranslator {
             if (!directObjects.isEmpty()) {
                 result.append(" ").append(formatList(directObjects));
             }
+            if (!indirectObjects.isEmpty()) {
+                result.append(" at ").append(formatList(indirectObjects));
+            }
             result.append("?");
         } else if (verb != null) {
             // No explicit subject - use first location/object
@@ -564,6 +616,9 @@ public class CarniteTranslator {
         } else if (!directObjects.isEmpty()) {
             result.append("Is there ");
             result.append(directObjects.get(0));
+            if (!indirectObjects.isEmpty()) {
+                result.append(" at ").append(formatList(indirectObjects));
+            }
             result.append("?");
         } else {
             result.append("Is this true?");
@@ -633,6 +688,7 @@ public class CarniteTranslator {
         // Track modifiers for next word
         boolean hasPlural = false;
         boolean hasAgent = false;
+        boolean directObjectIsAgent = false; // Track if first Od came from agent marker
         
         for (int i = 0; i < tokens.size(); i++) {
             CarniteParser.CarniteToken token = tokens.get(i);
@@ -1019,6 +1075,9 @@ public class CarniteTranslator {
                         }
                         
                         String agentPhrase = parseAgentPhrase(fullWord, hasPlural, level);
+                        if (directObjects.isEmpty()) {
+                            directObjectIsAgent = true; // First direct object is an agent
+                        }
                         directObjects.add(agentPhrase);
                         hasPlural = false;
                         hasAgent = false;
@@ -1060,14 +1119,15 @@ public class CarniteTranslator {
         }
         
         // Build English sentence
-        return constructSentence(directObjects, indirectObjects, subject, verb, hasNegation, tense);
+        return constructSentence(directObjects, indirectObjects, subject, verb, hasNegation, tense, directObjectIsAgent);
     }
     
     /**
      * Construct an English sentence from parsed Od Oi S V components.
      */
     private static String constructSentence(List<String> directObjects, List<String> indirectObjects,
-                                           String subject, String verb, boolean hasNegation, TenseMode tense) {
+                                           String subject, String verb, boolean hasNegation, TenseMode tense,
+                                           boolean directObjectIsAgent) {
         StringBuilder result = new StringBuilder();
         
         // No special prefix for URGENT tense anymore - just use normal conjugation
@@ -1088,67 +1148,76 @@ public class CarniteTranslator {
         }
         
         // Case: Od Oi with no explicit subject/verb
+        // Grammar determines meaning, not word content
         if (!directObjects.isEmpty() && !indirectObjects.isEmpty() && subject == null && verb == null) {
             String od = directObjects.get(0);
             String oi = indirectObjects.get(0);
             
-            // REQUEST tense implies "send" verb with "my civilization" as subject
-            // "2bld CN:" with light_blue → "My civilization should send 2 builders to Carnation"
+            // Clean up location format
+            String location = oi.equals("my civilization") ? oi : 
+                            (oi.startsWith("to ") ? oi.substring(3) : oi);
+            
+            // Determine plurality for verb conjugation
+            boolean isPlural = od.toLowerCase().startsWith("some") || 
+                             od.toLowerCase().startsWith("a ") == false && 
+                             od.toLowerCase().startsWith("an ") == false;
+            
+            // Rule 1: If Od is an agent (has | marker), use possession/presence structure
+            // "lib|5 CM" → "CM has a level 5 librarian"
+            // "~rd| ;" → "Some raiders are at my civilization"
+            if (directObjectIsAgent) {
+                // Special case: REQUEST tense with "my civilization" location
+                if (tense == TenseMode.REQUEST && oi.equals("my civilization")) {
+                    result.append("My civilization should have ");
+                    result.append(od.toLowerCase());
+                    result.append(".");
+                    return result.toString();
+                }
+                
+                // For non-REQUEST or non-self-location: use "be at" structure
+                // Apply tense to implicit "be at" verb
+                result.append(capitalize(od));
+                result.append(" ");
+                result.append(conjugateBeVerb(isPlural, tense));
+                result.append(" at ").append(location);
+                result.append(".");
+                
+                if (tense == TenseMode.CONDITIONAL) {
+                    result.append(" Undecided.");
+                }
+                
+                return result.toString();
+            }
+            
+            // Rule 2: Non-agent Od with Oi destination
+            // Default interpretation depends on tense
             if (tense == TenseMode.REQUEST) {
-                result.append("My civilization should send ");
-                result.append(od);
-                // Add destination
-                if (oi.startsWith("to ")) {
-                    result.append(" ").append(oi);
+                // REQUEST: implies transfer/send
+                // "2dmd CN:" on light_blue → "My civilization should send 2 diamonds to Carnation"
+                if (oi.equals("my civilization")) {
+                    result.append("My civilization should have ");
+                    result.append(od.toLowerCase());
                 } else {
-                    result.append(" to ").append(oi);
+                    result.append("My civilization should send ");
+                    result.append(od);
+                    result.append(" to ").append(location);
                 }
                 result.append(".");
                 return result.toString();
             }
             
-            // Event nouns use existential "there is" template
-            // "Elctn TWC" → "There is going to be an election at the Twin Cities"
-            if (od.toLowerCase().contains("election") || od.toLowerCase().contains("meeting") || od.toLowerCase().contains("event")) {
-                result.append("There is going to be ");
-                result.append(od.toLowerCase());
-                result.append(" at ").append(oi.startsWith("to ") ? oi.substring(3) : oi);
-                result.append(".");
-                return result.toString();
-            }
-            
-            // Role/agent with location uses possession template
-            // "lib|5 CM" → "Cactus Mountain has a librarian level 5"
-            if (od.contains("librarian") || od.contains("builder") || od.contains("miner") || 
-                od.contains("trader") || od.contains("diplomat") || od.contains("cartographer") ||
-                od.contains("blacksmith") || od.contains("level")) {
-                result.append(capitalize(oi.startsWith("to ") ? oi.substring(3) : oi));
-                result.append(" has ");
-                result.append(od);
-                result.append(".");
-                return result.toString();
-            }
-            
-            // Default: Od is at Oi (e.g., "~rd| ;" = "some raiders are at my civ")
+            // Rule 3: Default for other tenses: existence/location statement
+            // "dmd CN" → "Diamonds are at Carnation" (tense from banner)
             result.append(capitalize(od));
-            
-            // Determine verb "is" or "are" based on plurality
-            if (od.toLowerCase().startsWith("some") || od.toLowerCase().contains(" and ")) {
-                result.append(" are");
-            } else {
-                result.append(" is");
-            }
-            
-            // Determine preposition
-            if (oi.equals("my civilization")) {
-                result.append(" at ").append(oi);
-            } else if (oi.startsWith("to ")) {
-                result.append(" at ").append(oi.substring(3));
-            } else {
-                result.append(" at ").append(oi);
-            }
-            
+            result.append(" ");
+            result.append(conjugateBeVerb(isPlural, tense));
+            result.append(" at ").append(location);
             result.append(".");
+            
+            if (tense == TenseMode.CONDITIONAL) {
+                result.append(" Undecided.");
+            }
+            
             return result.toString();
         }
         
@@ -1502,7 +1571,7 @@ public class CarniteTranslator {
         if (CarniteConstants.isNumber(word)) {
             String result = "player " + word;
             if (level != null) {
-                result += " level " + level;
+                result = "level " + level + " player " + word;
             }
             return result;
         }
@@ -1514,11 +1583,9 @@ public class CarniteTranslator {
             String role = matcher.group(2);
             String roleName = expandWithProperties(role);
             String agentNoun = toAgentNoun(roleName);
-            String result = count + " " + (count > 1 ? agentNoun + "s" : agentNoun);
-            if (level != null) {
-                result += " level " + level;
-            }
-            return result;
+            String levelPhrase = level != null ? "level " + level + " " : "";
+            String pluralForm = count > 1 ? agentNoun + "s" : agentNoun;
+            return count + " " + levelPhrase + pluralForm;
         }
         
         // Handle "NM,smth" property notation - civ name + role
@@ -1537,35 +1604,26 @@ public class CarniteTranslator {
             
             if (hasPlural) {
                 // Plural: use article form "the Nowy Madagaskar raiders"
-                String result = "the " + civName + " " + pluralize(roleAgentNoun);
-                if (level != null) {
-                    result = "the " + civName + " level " + level + " " + pluralize(roleAgentNoun);
-                }
-                return result;
+                String levelPhrase = level != null ? "level " + level + " " : "";
+                return "the " + civName + " " + levelPhrase + pluralize(roleAgentNoun);
             } else {
                 // Singular: use possessive form
-                String result = civName + "'s " + roleAgentNoun;
-                if (level != null) {
-                    result = civName + "'s level " + level + " " + roleAgentNoun;
-                }
-                return result;
+                String levelPhrase = level != null ? "level " + level + " " : "";
+                return civName + "'s " + levelPhrase + roleAgentNoun;
             }
         }
         
         // Handle plural agents: ~rd| = "some raiders"
         if (hasPlural) {
-            String result = "Some " + agentNoun + "s";
-            if (level != null) {
-                result += " level " + level;
-            }
-            return result;
+            String levelPhrase = level != null ? "level " + level + " " : "";
+            return "some " + levelPhrase + agentNoun + "s";
         }
         
-        String result = "a " + agentNoun;
+        // Singular agent with level: "a level 5 librarian"
         if (level != null) {
-            result += " level " + level;
+            return "a level " + level + " " + agentNoun;
         }
-        return result;
+        return "a " + agentNoun;
     }
     
     /**
@@ -1582,6 +1640,24 @@ public class CarniteTranslator {
             return result.toString();
         }
         return CarniteVocabulary.expand(word);
+    }
+    
+    /**
+     * Conjugate the "be" verb based on plurality and tense for location statements.
+     */
+    private static String conjugateBeVerb(boolean isPlural, TenseMode tense) {
+        return switch (tense) {
+            case PRESENT -> isPlural ? "are" : "is";
+            case PAST -> isPlural ? "were" : "was";
+            case FUTURE -> "will be";
+            case CONDITIONAL -> "might be";
+            case URGENT -> isPlural ? "are" : "is";
+            case REQUEST -> "should be";
+            case DECISION -> "decided to be";
+            case QUESTION -> isPlural ? "are" : "is";
+            case TRADE -> isPlural ? "are offering" : "is offering";
+            case GOAL -> "'s goal is to be";
+        };
     }
     
     /**

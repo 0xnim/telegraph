@@ -14,6 +14,7 @@ public class PersistenceManager {
     private static final String SETTINGS_FILE = "channel_settings.json";
     private static final String MESSAGES_FILE = "messages.json";
     private static final String CIVILIZATIONS_FILE = "civilizations.json";
+    private static final String GLOBAL_SETTINGS_FILE = "global_settings.json";
     private final Gson gson;
     
     public PersistenceManager() {
@@ -230,6 +231,91 @@ public class PersistenceManager {
         } catch (IOException e) {
             System.err.println("Failed to save civilizations: " + e.getMessage());
         }
+    }
+    
+    public void loadMessages(TelegraphChannel channel) {
+        Path configDir = getConfigDir();
+        if (configDir == null) return;
+        
+        Path messagesPath = configDir.resolve(MESSAGES_FILE);
+        if (!Files.exists(messagesPath)) return;
+        
+        try {
+            String json = Files.readString(messagesPath);
+            JsonObject root = gson.fromJson(json, JsonObject.class);
+            
+            for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
+                int mapId = Integer.parseInt(entry.getKey());
+                JsonArray messagesArray = entry.getValue().getAsJsonArray();
+                
+                for (JsonElement msgElement : messagesArray) {
+                    JsonObject msgObj = msgElement.getAsJsonObject();
+                    
+                    String content = msgObj.get("content").getAsString();
+                    Instant timestamp = Instant.ofEpochMilli(msgObj.get("timestamp").getAsLong());
+                    
+                    TelegraphMessage.ChangeType type = null;
+                    if (msgObj.has("type") && !msgObj.get("type").isJsonNull()) {
+                        type = TelegraphMessage.ChangeType.valueOf(msgObj.get("type").getAsString());
+                    }
+                    
+                    DecorationSnapshot decoration = null;
+                    if (msgObj.has("decoration") && !msgObj.get("decoration").isJsonNull()) {
+                        JsonObject decoObj = msgObj.getAsJsonObject("decoration");
+                        decoration = new DecorationSnapshot(
+                            decoObj.get("type").getAsString(),
+                            decoObj.get("x").getAsDouble(),
+                            decoObj.get("z").getAsDouble(),
+                            decoObj.get("rotation").getAsInt(),
+                            decoObj.has("name") && !decoObj.get("name").isJsonNull() ? 
+                                decoObj.get("name").getAsString() : null
+                        );
+                    }
+                    
+                    TelegraphMessage message = new TelegraphMessage(mapId, content, type, timestamp, decoration);
+                    channel.addMessage(message);
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Failed to load messages: " + e.getMessage());
+        }
+    }
+    
+    public void saveGlobalSettings(boolean mapRefreshEnabled) {
+        Path configDir = getConfigDir();
+        if (configDir == null) return;
+        
+        Path settingsPath = configDir.resolve(GLOBAL_SETTINGS_FILE);
+        
+        try {
+            Map<String, Object> settings = new HashMap<>();
+            settings.put("mapRefreshEnabled", mapRefreshEnabled);
+            
+            String json = gson.toJson(settings);
+            Files.writeString(settingsPath, json);
+        } catch (IOException e) {
+            System.err.println("Failed to save global settings: " + e.getMessage());
+        }
+    }
+    
+    public boolean loadMapRefreshEnabled() {
+        Path configDir = getConfigDir();
+        if (configDir == null) return false;
+        
+        Path settingsPath = configDir.resolve(GLOBAL_SETTINGS_FILE);
+        if (!Files.exists(settingsPath)) return false;
+        
+        try {
+            String json = Files.readString(settingsPath);
+            JsonObject settings = gson.fromJson(json, JsonObject.class);
+            
+            if (settings.has("mapRefreshEnabled")) {
+                return settings.get("mapRefreshEnabled").getAsBoolean();
+            }
+        } catch (IOException e) {
+            System.err.println("Failed to load global settings: " + e.getMessage());
+        }
+        return false;
     }
     
     public void loadCivilizations() {
