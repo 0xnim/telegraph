@@ -75,25 +75,28 @@ public class TradesDashboardScreen extends Screen {
         
         int topBarY = PANEL_MARGIN;
         int topBarHeight = BUTTON_HEIGHT + PANEL_PADDING * 2;
+        int backButtonWidth = Math.min(60, width / 12);
+        int refreshButtonWidth = Math.min(70, width / 12);
+        int newTradeButtonWidth = Math.min(90, width / 10);
+        int searchWidth = Math.min(150, width / 6);
         
         backButton = ButtonWidget.builder(Text.literal("← Back"), button -> {
             if (client != null) {
                 client.setScreen(parent);
             }
-        }).dimensions(PANEL_MARGIN + PANEL_PADDING, topBarY + PANEL_PADDING, 60, BUTTON_HEIGHT).build();
+        }).dimensions(PANEL_MARGIN + PANEL_PADDING, topBarY + PANEL_PADDING, backButtonWidth, BUTTON_HEIGHT).build();
         addDrawableChild(backButton);
         
         refreshButton = ButtonWidget.builder(Text.literal("↻ Refresh"), button -> {
             refreshTrades();
-        }).dimensions(PANEL_MARGIN + PANEL_PADDING + 65, topBarY + PANEL_PADDING, 70, BUTTON_HEIGHT).build();
+        }).dimensions(PANEL_MARGIN + PANEL_PADDING + backButtonWidth + 5, topBarY + PANEL_PADDING, refreshButtonWidth, BUTTON_HEIGHT).build();
         addDrawableChild(refreshButton);
         
         newTradeButton = ButtonWidget.builder(Text.literal("+ New Trade"), button -> {
             openNewTradeComposer();
-        }).dimensions(PANEL_MARGIN + PANEL_PADDING + 140, topBarY + PANEL_PADDING, 90, BUTTON_HEIGHT).build();
+        }).dimensions(PANEL_MARGIN + PANEL_PADDING + backButtonWidth + refreshButtonWidth + 10, topBarY + PANEL_PADDING, newTradeButtonWidth, BUTTON_HEIGHT).build();
         addDrawableChild(newTradeButton);
         
-        int searchWidth = 150;
         searchField = new TextFieldWidget(textRenderer, width - PANEL_MARGIN - PANEL_PADDING - searchWidth, 
             topBarY + PANEL_PADDING, searchWidth, BUTTON_HEIGHT, Text.literal("Search"));
         searchField.setPlaceholder(Text.literal("Search trades..."));
@@ -105,53 +108,57 @@ public class TradesDashboardScreen extends Screen {
         
         int filterBarY = topBarY + topBarHeight + 5;
         int filterBarHeight = BUTTON_HEIGHT + PANEL_PADDING * 2;
+        int filterButtonWidth = Math.min(80, width / 10);
+        int statusButtonWidth = Math.min(60, width / 12);
+        int acceptedButtonWidth = Math.min(80, width / 10);
+        int buttonSpacing = 5;
         
         int filterX = PANEL_MARGIN + PANEL_PADDING;
         allTradesButton = ButtonWidget.builder(Text.literal("All Trades"), button -> {
             filterMode = FilterMode.ALL;
             updateFilterButtons();
             applyFilters();
-        }).dimensions(filterX, filterBarY + PANEL_PADDING, 80, BUTTON_HEIGHT).build();
+        }).dimensions(filterX, filterBarY + PANEL_PADDING, filterButtonWidth, BUTTON_HEIGHT).build();
         addDrawableChild(allTradesButton);
         
-        filterX += 85;
+        filterX += filterButtonWidth + buttonSpacing;
         myTradesButton = ButtonWidget.builder(Text.literal("My Trades"), button -> {
             filterMode = FilterMode.MY_TRADES;
             updateFilterButtons();
             applyFilters();
-        }).dimensions(filterX, filterBarY + PANEL_PADDING, 80, BUTTON_HEIGHT).build();
+        }).dimensions(filterX, filterBarY + PANEL_PADDING, filterButtonWidth, BUTTON_HEIGHT).build();
         addDrawableChild(myTradesButton);
         
-        filterX += 85;
+        filterX += filterButtonWidth + buttonSpacing;
         incomingButton = ButtonWidget.builder(Text.literal("Incoming"), button -> {
             filterMode = FilterMode.INCOMING;
             updateFilterButtons();
             applyFilters();
-        }).dimensions(filterX, filterBarY + PANEL_PADDING, 80, BUTTON_HEIGHT).build();
+        }).dimensions(filterX, filterBarY + PANEL_PADDING, filterButtonWidth, BUTTON_HEIGHT).build();
         addDrawableChild(incomingButton);
         
-        filterX += 100;
+        filterX += filterButtonWidth + 20;
         allStatusButton = ButtonWidget.builder(Text.literal("All"), button -> {
             statusFilter = StatusFilter.ALL;
             updateFilterButtons();
             applyFilters();
-        }).dimensions(filterX, filterBarY + PANEL_PADDING, 60, BUTTON_HEIGHT).build();
+        }).dimensions(filterX, filterBarY + PANEL_PADDING, statusButtonWidth, BUTTON_HEIGHT).build();
         addDrawableChild(allStatusButton);
         
-        filterX += 65;
+        filterX += statusButtonWidth + buttonSpacing;
         openStatusButton = ButtonWidget.builder(Text.literal("Open"), button -> {
             statusFilter = StatusFilter.OPEN;
             updateFilterButtons();
             applyFilters();
-        }).dimensions(filterX, filterBarY + PANEL_PADDING, 60, BUTTON_HEIGHT).build();
+        }).dimensions(filterX, filterBarY + PANEL_PADDING, statusButtonWidth, BUTTON_HEIGHT).build();
         addDrawableChild(openStatusButton);
         
-        filterX += 65;
+        filterX += statusButtonWidth + buttonSpacing;
         acceptedStatusButton = ButtonWidget.builder(Text.literal("Accepted"), button -> {
             statusFilter = StatusFilter.ACCEPTED;
             updateFilterButtons();
             applyFilters();
-        }).dimensions(filterX, filterBarY + PANEL_PADDING, 80, BUTTON_HEIGHT).build();
+        }).dimensions(filterX, filterBarY + PANEL_PADDING, acceptedButtonWidth, BUTTON_HEIGHT).build();
         addDrawableChild(acceptedStatusButton);
         
         int leftPanelWidth = (int) (width * 0.55);
@@ -368,7 +375,7 @@ public class TradesDashboardScreen extends Screen {
         contentY += 16;
         
         int buttonY = contentY + 10;
-        int buttonWidth = 100;
+        int buttonWidth = Math.min(100, (width - contentX - 40) / 3);
         int buttonSpacing = 10;
         
         acceptButton = ButtonWidget.builder(Text.literal("✓ Accept"), button -> {

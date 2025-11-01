@@ -13,13 +13,6 @@ import java.util.*;
 public class GlobalSettingsScreen extends Screen {
     private static final int PANEL_BORDER_COLOR = 0xFFC0C0C0;
     private static final int HEADER_COLOR = 0xFF222222;
-    private static final int MARGIN_LEFT = 20;
-    private static final int MARGIN_RIGHT = 20;
-    private static final int CONTROL_HEIGHT = 20;
-    private static final int ROW_SPACING = 30;
-    private static final int HEADER_HEIGHT = 30;
-    private static final int START_Y = 40;
-    private static final int BUTTON_WIDTH = 150;
     
     private final Screen parent;
     
@@ -45,8 +38,12 @@ public class GlobalSettingsScreen extends Screen {
             mapRefreshEnabled = tracker.isMapRefreshEnabled();
         }
         
-        int panelWidth = width - MARGIN_LEFT - MARGIN_RIGHT;
-        int y = START_Y + CONTROL_HEIGHT;
+        int margin = 20;
+        int controlHeight = 20;
+        int rowSpacing = 30;
+        int headerHeight = 30;
+        int panelWidth = width - (margin * 2);
+        int y = 60;
         
         // Map Refresh Toggle
         mapRefreshToggle = ButtonWidget.builder(
@@ -58,19 +55,23 @@ public class GlobalSettingsScreen extends Screen {
                 }
                 button.setMessage(Text.literal("Auto Map Refresh: " + (mapRefreshEnabled ? "§aON" : "§cOFF")));
             }
-        ).dimensions(MARGIN_LEFT, y, 200, CONTROL_HEIGHT).build();
+        ).dimensions(margin, y, 200, controlHeight).build();
         addDrawableChild(mapRefreshToggle);
         
-        y += ROW_SPACING;
-        y += HEADER_HEIGHT + 10;
+        y += rowSpacing;
+        y += headerHeight + 10;
         
-        // Input fields
-        civCodeField = new TextFieldWidget(textRenderer, MARGIN_LEFT, y, 80, CONTROL_HEIGHT, Text.literal("Code"));
+        // Input fields - responsive widths
+        int codeFieldWidth = Math.min(80, width / 8);
+        int nameFieldWidth = Math.min(250, width / 3);
+        int addButtonWidth = Math.min(130, width / 6);
+        
+        civCodeField = new TextFieldWidget(textRenderer, margin, y, codeFieldWidth, controlHeight, Text.literal("Code"));
         civCodeField.setMaxLength(4);
         civCodeField.setPlaceholder(Text.literal("Code..."));
         addDrawableChild(civCodeField);
         
-        civNameField = new TextFieldWidget(textRenderer, MARGIN_LEFT + 85, y, 250, CONTROL_HEIGHT, Text.literal("Name"));
+        civNameField = new TextFieldWidget(textRenderer, margin + codeFieldWidth + 5, y, nameFieldWidth, controlHeight, Text.literal("Name"));
         civNameField.setMaxLength(64);
         civNameField.setPlaceholder(Text.literal("Civilization name..."));
         addDrawableChild(civNameField);
@@ -95,12 +96,12 @@ public class GlobalSettingsScreen extends Screen {
                     }
                 }
             }
-        }).dimensions(MARGIN_LEFT + 340, y, 130, CONTROL_HEIGHT).build();
+        }).dimensions(margin + codeFieldWidth + nameFieldWidth + 10, y, addButtonWidth, controlHeight).build();
         addDrawableChild(addCivButton);
         
-        y += ROW_SPACING;
+        y += rowSpacing;
         
-        // Civilization list
+        // Civilization list - fills remaining space
         int listHeight = height - y - 60;
         civList = new CivilizationListWidget(
             client,
@@ -109,17 +110,18 @@ public class GlobalSettingsScreen extends Screen {
             y,
             24
         );
-        civList.setX(MARGIN_LEFT);
+        civList.setX(margin);
         addDrawableChild(civList);
         
         updateCivList();
         
-        // Done button
+        // Done button - centered at bottom
+        int buttonWidth = 150;
         doneButton = ButtonWidget.builder(Text.literal("Done"), button -> {
             if (client != null) {
                 client.setScreen(parent);
             }
-        }).dimensions(width / 2 - BUTTON_WIDTH / 2, height - ROW_SPACING, BUTTON_WIDTH, CONTROL_HEIGHT).build();
+        }).dimensions(width / 2 - buttonWidth / 2, height - 28, buttonWidth, controlHeight).build();
         addDrawableChild(doneButton);
     }
     
@@ -155,23 +157,25 @@ public class GlobalSettingsScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
         
-        int panelWidth = width - MARGIN_LEFT - MARGIN_RIGHT;
+        int margin = 20;
+        int headerHeight = 30;
+        int panelWidth = width - (margin * 2);
         
         context.drawCenteredTextWithShadow(textRenderer, this.title, width / 2, 20, 0xFFFFFFFF);
         
-        int y = START_Y + CONTROL_HEIGHT + ROW_SPACING;
+        int y = 90;
         int civHeaderY = y;
         
-        context.fill(MARGIN_LEFT, civHeaderY, MARGIN_LEFT + panelWidth, civHeaderY + HEADER_HEIGHT, HEADER_COLOR);
-        context.drawBorder(MARGIN_LEFT, civHeaderY, panelWidth, HEADER_HEIGHT, PANEL_BORDER_COLOR);
-        context.drawText(textRenderer, "§eGlobal Civilizations", MARGIN_LEFT + 8, civHeaderY + 10, 0xFFFFFFFF, false);
+        context.fill(margin, civHeaderY, margin + panelWidth, civHeaderY + headerHeight, HEADER_COLOR);
+        context.drawBorder(margin, civHeaderY, panelWidth, headerHeight, PANEL_BORDER_COLOR);
+        context.drawText(textRenderer, "§eGlobal Civilizations", margin + 8, civHeaderY + 10, 0xFFFFFFFF, false);
         
         y += 120;
         context.drawText(textRenderer, "§7Civilizations are shared across all channels.", 
-            MARGIN_LEFT + 8, y, 0xFF888888, false);
+            margin + 8, y, 0xFF888888, false);
         y += 12;
         context.drawText(textRenderer, "§7Auto Map Refresh: Periodically cycles maps to force server updates (every 60s)", 
-            MARGIN_LEFT + 8, y, 0xFF888888, false);
+            margin + 8, y, 0xFF888888, false);
     }
     
     @Override

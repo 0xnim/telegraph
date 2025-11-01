@@ -45,15 +45,18 @@ public class MessageComposerScreen extends Screen {
         super.init();
         
         int centerX = width / 2;
-        int panelWidth = 500;
+        int panelWidth = Math.min(500, width - 40);
         int panelX = centerX - panelWidth / 2;
+        int inputFieldY = 60;
+        int rowSpacing = 35;
+        int bottomMargin = 60;
         
-        messageField = new TextFieldWidget(textRenderer, panelX + PANEL_PADDING, 60, panelWidth - PANEL_PADDING * 2, 20, Text.literal("Message"));
+        messageField = new TextFieldWidget(textRenderer, panelX + PANEL_PADDING, inputFieldY, panelWidth - PANEL_PADDING * 2, 20, Text.literal("Message"));
         messageField.setMaxLength(64);
         messageField.setPlaceholder(Text.literal("Type your message..."));
         addDrawableChild(messageField);
         
-        int y = 95;
+        int y = inputFieldY + rowSpacing;
         
         boolean isCarnite = settings.getProtocol() instanceof CarniteProtocol;
         
@@ -98,6 +101,11 @@ public class MessageComposerScreen extends Screen {
             addTemplateButtons(panelX, y);
         }
         
+        int bottomButtonY = height - bottomMargin;
+        int copyButtonWidth = 150;
+        int clearButtonWidth = 80;
+        int doneButtonWidth = 80;
+        
         copyButton = ButtonWidget.builder(Text.literal("Copy to Clipboard"), button -> {
             String message = getFormattedMessage();
             if (client != null) {
@@ -106,21 +114,21 @@ public class MessageComposerScreen extends Screen {
                     client.player.sendMessage(Text.literal("§aCopied to clipboard!"), false);
                 }
             }
-        }).dimensions(panelX + PANEL_PADDING, height - 60, 150, 20).build();
+        }).dimensions(panelX + PANEL_PADDING, bottomButtonY, copyButtonWidth, 20).build();
         addDrawableChild(copyButton);
         
         clearButton = ButtonWidget.builder(Text.literal("Clear"), button -> {
             if (messageField != null) {
                 messageField.setText("");
             }
-        }).dimensions(panelX + PANEL_PADDING + 155, height - 60, 80, 20).build();
+        }).dimensions(panelX + PANEL_PADDING + copyButtonWidth + 5, bottomButtonY, clearButtonWidth, 20).build();
         addDrawableChild(clearButton);
         
         doneButton = ButtonWidget.builder(Text.literal("Done"), button -> {
             if (client != null) {
                 client.setScreen(parent);
             }
-        }).dimensions(panelX + panelWidth - PANEL_PADDING - 80, height - 60, 80, 20).build();
+        }).dimensions(panelX + panelWidth - PANEL_PADDING - doneButtonWidth, bottomButtonY, doneButtonWidth, 20).build();
         addDrawableChild(doneButton);
         
         updateColorButtons();
@@ -183,7 +191,7 @@ public class MessageComposerScreen extends Screen {
         super.render(context, mouseX, mouseY, delta);
         
         int centerX = width / 2;
-        int panelWidth = 500;
+        int panelWidth = Math.min(500, width - 40);
         int panelX = centerX - panelWidth / 2;
         
         context.drawText(textRenderer, "Composing for: " + channel.getDisplayName(mapId), panelX + PANEL_PADDING, 40, 0xFFFFFFFF, false);

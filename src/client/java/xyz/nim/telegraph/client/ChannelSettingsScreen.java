@@ -32,42 +32,40 @@ public class ChannelSettingsScreen extends Screen {
     protected void init() {
         super.init();
         
-        int leftMargin = 20;
-        int rightMargin = 20;
-        int panelWidth = width - leftMargin - rightMargin;
-        int startY = 40;
+        int margin = 20;
+        int controlHeight = 20;
+        int rowSpacing = 30;
+        int startY = 60;
         
-        // Header
-        int y = startY + 20;
+        int translationsButtonWidth = Math.min(180, width / 4);
+        int archiveButtonWidth = Math.min(100, width / 8);
         
-        // Show translations toggle
         showTranslationsButton = ButtonWidget.builder(
             Text.literal(settings.isShowTranslations() ? "Hide Translations" : "Show Translations"),
             button -> {
                 settings.setShowTranslations(!settings.isShowTranslations());
                 button.setMessage(Text.literal(settings.isShowTranslations() ? "Hide Translations" : "Show Translations"));
             })
-            .dimensions(leftMargin, y, 180, 20)
+            .dimensions(margin, startY, translationsButtonWidth, controlHeight)
             .build();
         addDrawableChild(showTranslationsButton);
         
-        // Archive button
         archiveButton = ButtonWidget.builder(
             Text.literal(settings.isArchived() ? "Unarchive" : "Archive"),
             button -> {
                 settings.setArchived(!settings.isArchived());
                 button.setMessage(Text.literal(settings.isArchived() ? "Unarchive" : "Archive"));
             })
-            .dimensions(leftMargin + 185, y, 100, 20)
+            .dimensions(margin + translationsButtonWidth + 5, startY, archiveButtonWidth, controlHeight)
             .build();
         addDrawableChild(archiveButton);
         
-        // Done button
+        int doneButtonWidth = Math.min(150, width / 5);
         doneButton = ButtonWidget.builder(Text.literal("Done"), button -> {
             if (client != null) {
                 client.setScreen(parent);
             }
-        }).dimensions(width / 2 - 75, height - 30, 150, 20).build();
+        }).dimensions(width / 2 - doneButtonWidth / 2, height - 28, doneButtonWidth, controlHeight).build();
         addDrawableChild(doneButton);
     }
     
@@ -76,9 +74,6 @@ public class ChannelSettingsScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
         
-        int leftMargin = 20;
-        
-        // Title
         context.drawCenteredTextWithShadow(textRenderer, this.title, width / 2, 20, 0xFFFFFFFF);
         context.drawCenteredTextWithShadow(textRenderer, "§7" + channel.getDisplayName(mapId), width / 2, 32, 0xFFAAAAAA);
     }

@@ -57,7 +57,7 @@ public class MapDecorationsScreen extends Screen {
             selectedMapId = channels.keySet().iterator().next();
         }
         
-        int leftPanelWidth = 180;
+        int leftPanelWidth = Math.min(180, width / 5);
         int leftPanelX = PANEL_MARGIN;
         int leftPanelY = PANEL_MARGIN;
         int leftPanelHeight = height - PANEL_MARGIN * 2;
@@ -152,7 +152,8 @@ public class MapDecorationsScreen extends Screen {
         addDrawableChild(composeButton);
         addDrawableChild(tradesButton);
         
-        renameField = new TextFieldWidget(textRenderer, rightPanelX + PANEL_PADDING + 310, tabY, 150, BUTTON_HEIGHT, Text.literal("Channel Name"));
+        int renameFieldWidth = Math.min(150, (rightPanelWidth - 320) / 2);
+        renameField = new TextFieldWidget(textRenderer, rightPanelX + PANEL_PADDING + 310, tabY, renameFieldWidth, BUTTON_HEIGHT, Text.literal("Channel Name"));
         renameField.setMaxLength(32);
         renameField.setPlaceholder(Text.literal("Enter channel name..."));
         addDrawableChild(renameField);
@@ -237,7 +238,7 @@ public class MapDecorationsScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
         
-        int leftPanelWidth = 180;
+        int leftPanelWidth = Math.min(180, width / 5);
         int leftPanelX = PANEL_MARGIN;
         int leftPanelY = PANEL_MARGIN;
         int leftPanelHeight = height - PANEL_MARGIN * 2;

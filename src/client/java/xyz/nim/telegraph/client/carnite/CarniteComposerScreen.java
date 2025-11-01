@@ -7,6 +7,9 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import xyz.nim.telegraph.client.ChannelSettings;
 import xyz.nim.telegraph.client.TelegraphChannel;
+import xyz.nim.telegraph.client.ui.DropdownWidget;
+import xyz.nim.telegraph.client.ui.SimpleLayout;
+import xyz.nim.telegraph.client.ui.SimpleLayout.Box;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,9 +28,36 @@ public class CarniteComposerScreen extends Screen {
     private ButtonWidget infoTabButton;
     private ButtonWidget learnTabButton;
     private ButtonWidget expandTabButton;
+    private DropdownWidget colorDropdown;
+    private DropdownWidget templateDropdown;
     private List<ButtonWidget> symbolButtons = new ArrayList<>();
-    private List<ButtonWidget> colorButtons = new ArrayList<>();
-    private List<ButtonWidget> templateButtons = new ArrayList<>();
+    
+    private static final String[][] BANNER_COLORS = {
+        {"white", "White (Present)"},
+        {"light_gray", "Lt.Gray (Past)"},
+        {"gray", "Gray (Future)"},
+        {"pink", "Pink (Might)"},
+        {"red", "Red (URGENT)"},
+        {"light_blue", "Lt.Blue (Request)"},
+        {"black", "Black (Decided)"},
+        {"blue", "Blue (Question)"},
+        {"yellow", "Yellow (Trade)"},
+        {"purple", "Purple (Goal)"}
+    };
+    
+    private static final String[][] TEMPLATES = {
+        {"~rd| ; ", "Raiders at my civ", "red"},
+        {".dmd ; _:", "Trade: diamond for?", "yellow"},
+        {".brd,32irn ; _:", "Trade: bread+iron for?", "yellow"},
+        {"^ y", "Response: Yes", null},
+        {"^ -acpt", "Response: Do not accept", null},
+        {"_ :: ; atk", "Question: Who is attacking?", "blue"},
+        {"bld| CN:", "Request: Builder to CN", "light_blue"},
+        {"lib|5 _:", "Question: lvl 5 librarian?", "blue"}
+    };
+    
+    private int selectedColorIndex = 0;
+    private int selectedTemplateIndex = 0;
     
     private String selectedBannerColor = "white";
     private String initialMessage = null;
@@ -37,6 +67,13 @@ public class CarniteComposerScreen extends Screen {
     private ViewMode currentMode = ViewMode.INFO;
     private int scrollOffset = 0;
     private int hoveredPartIndex = -1;
+    
+    private int tabY;
+    private int panelY;
+    private int panelHeight;
+    private int infoPreviewY;
+    private int symbolGridY;
+    private int bottomButtonY;
     
     private enum ViewMode {
         INFO,     // Default - civs, validation, info
@@ -66,11 +103,16 @@ public class CarniteComposerScreen extends Screen {
     protected void init() {
         super.init();
         
-        int leftMargin = 20;
-        int rightPanelX = width - 200;
+        int margin = 20;
+        int rightPanelWidth = Math.min(180, width / 4);
+        int leftPanelWidth = width - margin - rightPanelWidth - margin - 10;
+        
+        // Create layout for left panel
+        var leftPanel = SimpleLayout.vstack(margin, 40, leftPanelWidth, 5);
         
         // Message input
-        messageField = new TextFieldWidget(textRenderer, leftMargin, 40, rightPanelX - leftMargin - 10, 20, Text.literal("Message"));
+        Box inputBox = leftPanel.add(20);
+        messageField = new TextFieldWidget(textRenderer, inputBox.x, inputBox.y, inputBox.width, inputBox.height, Text.literal("Message"));
         messageField.setMaxLength(64);
         messageField.setPlaceholder(Text.literal("Type Carnite message..."));
         if (initialMessage != null) {
@@ -89,101 +131,139 @@ public class CarniteComposerScreen extends Screen {
             explanationResult = CarniteExplainer.explainMessage(initialMessage, selectedBannerColor);
         }
         
-        // Symbol buttons
-        int symbolY = 70;
-        int symbolX = leftMargin;
-        Map<String, String> symbols = CarniteVocabulary.getSymbols();
-        
-        for (Map.Entry<String, String> entry : symbols.entrySet()) {
-            String symbol = entry.getKey();
-            ButtonWidget btn = ButtonWidget.builder(Text.literal(symbol), button -> {
-                if (messageField != null) {
-                    String current = messageField.getText();
-                    messageField.setText(current + symbol);
-                }
-            }).dimensions(symbolX, symbolY, 30, 18).build();
+        // Only show symbols if enough vertical space (need ~350px minimum)
+        if (height >= 350) {
+            leftPanel.addGap(10);
             
-            addDrawableChild(btn);
-            symbolButtons.add(btn);
+            // Symbol buttons using grid - limit to 3 rows max
+            Map<String, String> symbols = CarniteVocabulary.getSymbols();
+            int symbolsPerRow = Math.max(1, leftPanelWidth / 35);
+            int maxSymbolRows = height >= 500 ? 3 : 2;
+            this.symbolGridY = leftPanel.getCurrentY();
+            var symbolGrid = SimpleLayout.grid(margin, this.symbolGridY, symbolsPerRow, 30, 18, 5, 5);
             
-            symbolX += 35;
-            if (symbolX > rightPanelX - 50) {
-                symbolX = leftMargin;
-                symbolY += 20;
+            int count = 0;
+            for (Map.Entry<String, String> entry : symbols.entrySet()) {
+                if (count >= symbolsPerRow * maxSymbolRows) break;
+                
+                String symbol = entry.getKey();
+                Box symbolBox = symbolGrid.next();
+                ButtonWidget btn = ButtonWidget.builder(Text.literal(symbol), button -> {
+                    if (messageField != null) {
+                        String current = messageField.getText();
+                        messageField.setText(current + symbol);
+                    }
+                }).dimensions(symbolBox.x, symbolBox.y, symbolBox.width, symbolBox.height).build();
+                
+                addDrawableChild(btn);
+                symbolButtons.add(btn);
+                count++;
             }
+            
+            int symbolGridHeight = Math.min(symbolGrid.getHeight(), maxSymbolRows * 18 + (maxSymbolRows - 1) * 5);
+            leftPanel.add(symbolGridHeight);
+            leftPanel.addGap(5);
         }
         
-        // Quick templates
-        int templateY = symbolY + 30;
-        addTemplate(leftMargin, templateY, "~rd| ; ", "Raiders at my civ", "red");
-        addTemplate(leftMargin, templateY + 22, ".dmd ; _:", "Trade: stack of diamonds for?", "yellow");
-        addTemplate(leftMargin, templateY + 44, ".brd,32irn ; _:", "Trade: bread+iron for?", "yellow");
-        addTemplate(leftMargin, templateY + 66, "^ y", "Response: Yes", null);
-        addTemplate(leftMargin, templateY + 88, "^ -acpt", "Response: Do not accept", null);
-        addTemplate(leftMargin, templateY + 110, "_ :: ; atk", "Question: Which of you is attacking us?", "blue");
-        addTemplate(leftMargin, templateY + 132, "bld| CN:", "Request: Builder to Carnation", "light_blue");
-        addTemplate(leftMargin, templateY + 154, "lib|5 _:", "Question: Who has lvl 5 librarian?", "blue");
+        // Template dropdown - only show if enough space
+        if (height >= 400) {
+            Box templateBox = leftPanel.add(20);
+            
+            List<DropdownWidget.DropdownOption> templateOptions = new ArrayList<>();
+            for (String[] template : TEMPLATES) {
+                templateOptions.add(new DropdownWidget.DropdownOption(template[0], template[1]));
+            }
+            
+            templateDropdown = new DropdownWidget(client, templateBox.x, templateBox.y, templateBox.width, templateBox.height, 
+                templateOptions, selectedTemplate -> {
+                    if (messageField != null) {
+                        messageField.setText(selectedTemplate);
+                    }
+                    
+                    for (String[] template : TEMPLATES) {
+                        if (template[0].equals(selectedTemplate)) {
+                            String bannerColor = template[2];
+                            if (bannerColor != null) {
+                                selectedBannerColor = bannerColor;
+                                colorDropdown.setSelected(bannerColor);
+                            }
+                            break;
+                        }
+                    }
+                    
+                    validationResult = CarniteValidator.validate(selectedTemplate, selectedBannerColor);
+                    explanationResult = CarniteExplainer.explainMessage(selectedTemplate, selectedBannerColor);
+                });
+            addDrawableChild(templateDropdown.getButton());
+        }
         
-        // Banner color selection (right panel)
-        int colorY = 40;
-        Text.literal("Banner Color:").getString();
+        // Right panel layout
+        int rightPanelX = width - margin - rightPanelWidth;
+        var rightPanel = SimpleLayout.vstack(rightPanelX, 70, rightPanelWidth, 10);
         
-        String[][] colors = {
-            {"white", "White\n(Present)"},
-            {"light_gray", "Lt.Gray\n(Past)"},
-            {"gray", "Gray\n(Future)"},
-            {"pink", "Pink\n(Might)"},
-            {"red", "Red\n(URGENT)"},
-            {"light_blue", "Lt.Blue\n(Request)"},
-            {"black", "Black\n(Decided)"},
-            {"blue", "Blue\n(Question)"},
-            {"yellow", "Yellow\n(Trade)"},
-            {"purple", "Purple\n(Goal)"}
-        };
+        // Banner color dropdown (right panel)
+        Box colorBox = rightPanel.add(20);
         
-        for (String[] color : colors) {
-            ButtonWidget colorBtn = ButtonWidget.builder(Text.literal(color[1].split("\n")[0]), button -> {
-                selectedBannerColor = color[0];
-                updateColorButtons();
-                // Update both validation and explanation immediately
+        List<DropdownWidget.DropdownOption> colorOptions = new ArrayList<>();
+        for (String[] color : BANNER_COLORS) {
+            colorOptions.add(new DropdownWidget.DropdownOption(color[0], color[1]));
+        }
+        
+        colorDropdown = new DropdownWidget(client, colorBox.x, colorBox.y, colorBox.width, colorBox.height,
+            colorOptions, selectedColor -> {
+                selectedBannerColor = selectedColor;
                 validationResult = CarniteValidator.validate(messageField.getText(), selectedBannerColor);
                 explanationResult = CarniteExplainer.explainMessage(messageField.getText(), selectedBannerColor);
-            }).dimensions(rightPanelX, colorY, 180, 18).build();
-            
-            addDrawableChild(colorBtn);
-            colorButtons.add(colorBtn);
-            colorY += 20;
-        }
+            });
+        colorDropdown.setSelected(selectedBannerColor);
+        addDrawableChild(colorDropdown.getButton());
         
-        // Tab buttons (above panel area)
-        int tabY = 275;
+        // Calculate positions from bottom up
+        this.bottomButtonY = height - 30;
+        this.infoPreviewY = this.bottomButtonY - 30;
         
+        // Calculate tab position - start after left panel content with some gap
+        leftPanel.addGap(10);
+        this.tabY = leftPanel.getCurrentY();
+        this.panelY = this.tabY + 25;
+        this.panelHeight = this.infoPreviewY - this.panelY - 10;
+        
+        // Tab buttons using HStack
+        var tabs = SimpleLayout.hstack(margin, this.tabY, 20, 5);
+        
+        Box infoTab = tabs.add(80);
         infoTabButton = ButtonWidget.builder(Text.literal("Info"), button -> {
             currentMode = ViewMode.INFO;
             updateTabButtons();
-        }).dimensions(leftMargin, tabY, 80, 20).build();
+        }).dimensions(infoTab.x, infoTab.y, infoTab.width, infoTab.height).build();
         addDrawableChild(infoTabButton);
         
+        Box learnTab = tabs.add(80);
         learnTabButton = ButtonWidget.builder(Text.literal("Learn"), button -> {
             currentMode = ViewMode.LEARN;
             explanationResult = CarniteExplainer.explainMessage(messageField.getText(), selectedBannerColor);
             updateTabButtons();
-        }).dimensions(leftMargin + 85, tabY, 80, 20).build();
+        }).dimensions(learnTab.x, learnTab.y, learnTab.width, learnTab.height).build();
         addDrawableChild(learnTabButton);
         
+        Box expandTab = tabs.add(80);
         expandTabButton = ButtonWidget.builder(Text.literal("Expand"), button -> {
             currentMode = ViewMode.EXPAND;
             explanationResult = CarniteExplainer.explainMessage(messageField.getText(), selectedBannerColor);
             updateTabButtons();
-        }).dimensions(leftMargin + 170, tabY, 80, 20).build();
+        }).dimensions(expandTab.x, expandTab.y, expandTab.width, expandTab.height).build();
         addDrawableChild(expandTabButton);
         
-        // Bottom buttons
+        // Bottom buttons using HStack
+        var bottomButtons = SimpleLayout.hstack(margin, this.bottomButtonY, 20, 5);
+        
+        Box helpBox = bottomButtons.add(Math.min(70, width / 12));
         helpButton = ButtonWidget.builder(Text.literal("Help"), button -> {
             showHelp = !showHelp;
-        }).dimensions(leftMargin, height - 60, 70, 20).build();
+        }).dimensions(helpBox.x, helpBox.y, helpBox.width, helpBox.height).build();
         addDrawableChild(helpButton);
         
+        Box copyBox = bottomButtons.add(Math.min(70, width / 12));
         copyButton = ButtonWidget.builder(Text.literal("Copy"), button -> {
             String message = getFormattedMessage();
             if (client != null) {
@@ -192,17 +272,18 @@ public class CarniteComposerScreen extends Screen {
                     client.player.sendMessage(Text.literal("§aCopied: " + message), false);
                 }
             }
-        }).dimensions(leftMargin + 75, height - 60, 70, 20).build();
+        }).dimensions(copyBox.x, copyBox.y, copyBox.width, copyBox.height).build();
         addDrawableChild(copyButton);
         
+        // Done button on right side
+        int doneButtonWidth = Math.min(80, width / 10);
         doneButton = ButtonWidget.builder(Text.literal("Done"), button -> {
             if (client != null) {
                 client.setScreen(parent);
             }
-        }).dimensions(rightPanelX + 100, height - 60, 80, 20).build();
+        }).dimensions(width - margin - doneButtonWidth, this.bottomButtonY, doneButtonWidth, 20).build();
         addDrawableChild(doneButton);
         
-        updateColorButtons();
         updateTabButtons();
     }
     
@@ -212,28 +293,7 @@ public class CarniteComposerScreen extends Screen {
         if (expandTabButton != null) expandTabButton.active = currentMode != ViewMode.EXPAND;
     }
     
-    private void addTemplate(int x, int y, String template, String description, String bannerColor) {
-        ButtonWidget btn = ButtonWidget.builder(Text.literal(template), button -> {
-            if (messageField != null) {
-                messageField.setText(template);
-            }
-            if (bannerColor != null) {
-                selectedBannerColor = bannerColor;
-                updateColorButtons();
-            }
-            validationResult = CarniteValidator.validate(template, selectedBannerColor);
-            explanationResult = CarniteExplainer.explainMessage(template, selectedBannerColor);
-        }).dimensions(x, y, 150, 18).build();
-        addDrawableChild(btn);
-        templateButtons.add(btn);
-    }
-    
-    private void updateColorButtons() {
-        String[] colors = {"white", "light_gray", "gray", "pink", "red", "light_blue", "black", "blue", "yellow", "purple"};
-        for (int i = 0; i < colorButtons.size() && i < colors.length; i++) {
-            colorButtons.get(i).active = !colors[i].equals(selectedBannerColor);
-        }
-    }
+
     
     private String getFormattedMessage() {
         String message = messageField != null ? messageField.getText() : "";
@@ -244,27 +304,28 @@ public class CarniteComposerScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
         
-        int leftMargin = 20;
-        int rightPanelX = width - 200;
+        int margin = 20;
+        int rightPanelWidth = Math.min(180, width / 4);
+        int rightPanelX = width - margin - rightPanelWidth;
         
         // Title
-        context.drawText(textRenderer, "Carnite Message Composer", leftMargin, 20, 0xFFFFFFFF, false);
-        context.drawText(textRenderer, "Channel: " + channel.getDisplayName(mapId), leftMargin, 30, 0xFFAAAAAA, false);
+        context.drawText(textRenderer, "Carnite Message Composer", margin, 20, 0xFFFFFFFF, false);
+        context.drawText(textRenderer, "Channel: " + channel.getDisplayName(mapId), margin, 30, 0xFFAAAAAA, false);
         
         // Symbol helper section
-        context.drawText(textRenderer, "Quick Symbols:", leftMargin, 60, 0xFFFFFFFF, false);
+        if (symbolGridY > 0) {
+            context.drawText(textRenderer, "Quick Symbols:", margin, symbolGridY - 12, 0xFFFFFFFF, false);
+        }
         
         // Color panel title
-        context.drawText(textRenderer, "Banner Color (Tense):", rightPanelX, 30, 0xFFFFFFFF, false);
-        context.drawText(textRenderer, "Selected: " + CarniteParser.getTenseFromColor(selectedBannerColor), 
-            rightPanelX, 250, 0xFFFFFF00, false);
+        context.drawText(textRenderer, "Banner Color:", rightPanelX, 55, 0xFFFFFFFF, false);
         
         // Message stats
         if (messageField != null && !messageField.getText().isEmpty()) {
             int length = messageField.getText().length();
             int color = length > 38 ? 0xFFFF0000 : length > 32 ? 0xFFFFAA00 : 0xFF55FF55;
             String stats = length + " chars" + (length > 32 ? " (readability warning)" : "");
-            context.drawText(textRenderer, stats, leftMargin, height - 80, color, false);
+            context.drawText(textRenderer, stats, margin, height - 80, color, false);
         }
         
         // Render current tab content
@@ -288,23 +349,36 @@ public class CarniteComposerScreen extends Screen {
         }
         
         // Preview
-        context.drawText(textRenderer, "Preview:", leftMargin, height - 95, 0xFFAAAAAA, false);
+        context.drawText(textRenderer, "Preview:", margin, infoPreviewY, 0xFFAAAAAA, false);
         String preview = getFormattedMessage();
-        context.drawText(textRenderer, preview, leftMargin + 60, height - 95, 0xFFFFFF00, false);
+        context.drawText(textRenderer, preview, margin + 60, infoPreviewY, 0xFFFFFF00, false);
+        
+        // Render dropdowns last so they appear on top (only if they exist)
+        if (templateDropdown != null) {
+            templateDropdown.render(context, mouseX, mouseY, delta);
+        }
+        if (colorDropdown != null) {
+            colorDropdown.render(context, mouseX, mouseY, delta);
+        }
+        
+        // Show warning if screen too small
+        if (height < 350) {
+            context.drawCenteredTextWithShadow(textRenderer, "§cScreen too small - some features hidden", 
+                width / 2, height / 2, 0xFFFF5555);
+        }
     }
     
     private void renderInfoTab(DrawContext context) {
-        int panelY = 300;
-        int leftMargin = 20;
-        int panelWidth = width - 240;
-        int panelHeight = height - panelY - 130;
+        int margin = 20;
+        int rightPanelWidth = Math.min(180, width / 4);
+        int panelWidth = width - margin - rightPanelWidth - margin - 10;
         
         // Background panel
-        context.fill(leftMargin, panelY, leftMargin + panelWidth, panelY + panelHeight, 0xE0000033);
-        context.drawBorder(leftMargin, panelY, panelWidth, panelHeight, 0xFF00AAFF);
+        context.fill(margin, panelY, margin + panelWidth, panelY + panelHeight, 0xE0000033);
+        context.drawBorder(margin, panelY, panelWidth, panelHeight, 0xFF00AAFF);
         
         int contentY = panelY + 10;
-        int contentX = leftMargin + 10;
+        int contentX = margin + 10;
         
         context.drawText(textRenderer, "§b§lMESSAGE INFO", contentX, contentY, 0xFFFFFFFF, false);
         contentY += 20;
@@ -417,17 +491,16 @@ public class CarniteComposerScreen extends Screen {
     }
     
     private void renderLearningMode(DrawContext context, int mouseX, int mouseY) {
-        int panelY = 300;
-        int leftMargin = 20;
-        int panelWidth = width - 240;
-        int panelHeight = height - panelY - 130;
+        int margin = 20;
+        int rightPanelWidth = Math.min(180, width / 4);
+        int panelWidth = width - margin - rightPanelWidth - margin - 10;
         
         // Background panel
-        context.fill(leftMargin, panelY, leftMargin + panelWidth, panelY + panelHeight, 0xE0000000);
-        context.drawBorder(leftMargin, panelY, panelWidth, panelHeight, 0xFF00FF00);
+        context.fill(margin, panelY, margin + panelWidth, panelY + panelHeight, 0xE0000000);
+        context.drawBorder(margin, panelY, panelWidth, panelHeight, 0xFF00FF00);
         
         int contentY = panelY + 5;
-        int contentX = leftMargin + 5;
+        int contentX = margin + 5;
         
         context.drawText(textRenderer, "§a§lLEARNING MODE - Hover over any part", contentX, contentY, 0xFFFFFFFF, false);
         contentY += 15;
@@ -476,7 +549,7 @@ public class CarniteComposerScreen extends Screen {
             CarniteExplainer.MessagePart part = explanationResult.parts().get(hoveredPartIndex);
             
             int tooltipY = panelY + panelHeight - 40;
-            context.fill(contentX, tooltipY, leftMargin + panelWidth - 5, panelY + panelHeight - 5, 0xFF1A1A1A);
+            context.fill(contentX, tooltipY, margin + panelWidth - 5, panelY + panelHeight - 5, 0xFF1A1A1A);
             context.drawBorder(contentX, tooltipY, panelWidth - 10, 35, 0xFFFFFF00);
             
             context.drawText(textRenderer, "§e'" + part.text() + "' §f→ §b" + part.expanded(), 
@@ -487,7 +560,7 @@ public class CarniteComposerScreen extends Screen {
         
         // Legend
         int legendY = panelY + 5;
-        int legendX = leftMargin + panelWidth - 180;
+        int legendX = margin + panelWidth - 180;
         context.drawText(textRenderer, "§7Color Legend:", legendX, legendY, 0xFFFFFFFF, false);
         legendY += 12;
         
@@ -506,17 +579,16 @@ public class CarniteComposerScreen extends Screen {
     }
     
     private void renderExpandedTranslation(DrawContext context) {
-        int panelY = 300;
-        int leftMargin = 20;
-        int panelWidth = width - 240;
-        int panelHeight = height - panelY - 130;
+        int margin = 20;
+        int rightPanelWidth = Math.min(180, width / 4);
+        int panelWidth = width - margin - rightPanelWidth - margin - 10;
         
         // Background panel
-        context.fill(leftMargin, panelY, leftMargin + panelWidth, panelY + panelHeight, 0xE0001100);
-        context.drawBorder(leftMargin, panelY, panelWidth, panelHeight, 0xFF00FFFF);
+        context.fill(margin, panelY, margin + panelWidth, panelY + panelHeight, 0xE0001100);
+        context.drawBorder(margin, panelY, panelWidth, panelHeight, 0xFF00FFFF);
         
         int contentY = panelY + 10;
-        int contentX = leftMargin + 10;
+        int contentX = margin + 10;
         
         context.drawText(textRenderer, "§b§lEXPANDED TRANSLATION", contentX, contentY, 0xFFFFFFFF, false);
         contentY += 20;
@@ -654,7 +726,24 @@ public class CarniteComposerScreen extends Screen {
     }
     
     @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (templateDropdown != null && templateDropdown.mouseClicked(mouseX, mouseY, button)) {
+            return true;
+        }
+        if (colorDropdown != null && colorDropdown.mouseClicked(mouseX, mouseY, button)) {
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+    
+    @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (templateDropdown != null && templateDropdown.mouseScrolled(mouseX, mouseY, verticalAmount)) {
+            return true;
+        }
+        if (colorDropdown != null && colorDropdown.mouseScrolled(mouseX, mouseY, verticalAmount)) {
+            return true;
+        }
         scrollOffset += (int) (verticalAmount * 10);
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }

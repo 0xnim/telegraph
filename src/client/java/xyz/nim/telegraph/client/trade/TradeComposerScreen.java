@@ -48,34 +48,43 @@ public class TradeComposerScreen extends Screen {
         
         int centerX = width / 2;
         int startY = 40;
+        int margin = 20;
+        int controlHeight = 20;
+        int bottomMargin = 90;
+        int backButtonWidth = Math.min(60, width / 12);
+        int addButtonWidth = Math.min(100, width / 10);
+        int previewButtonWidth = Math.min(100, width / 10);
+        int sendButtonWidth = Math.min(100, width / 10);
+        int panelHalfWidth = Math.min(220, (width - margin * 2) / 2);
         
         backButton = ButtonWidget.builder(Text.literal("← Back"), button -> {
             if (client != null) {
                 client.setScreen(parent);
             }
-        }).dimensions(20, 20, 60, 20).build();
+        }).dimensions(margin, margin, backButtonWidth, controlHeight).build();
         addDrawableChild(backButton);
         
         int offeringY = startY + 40;
         addOfferingButton = ButtonWidget.builder(Text.literal("+ Add Item"), button -> {
             addOfferingInput();
-        }).dimensions(centerX - 200, offeringY, 100, 20).build();
+        }).dimensions(centerX - panelHalfWidth, offeringY, addButtonWidth, controlHeight).build();
         addDrawableChild(addOfferingButton);
         
         int requestingY = startY + 180;
         addRequestingButton = ButtonWidget.builder(Text.literal("+ Add Item"), button -> {
             addRequestingInput();
-        }).dimensions(centerX - 200, requestingY, 100, 20).build();
+        }).dimensions(centerX - panelHalfWidth, requestingY, addButtonWidth, controlHeight).build();
         addDrawableChild(addRequestingButton);
         
+        int bottomButtonY = height - bottomMargin;
         previewButton = ButtonWidget.builder(Text.literal("↻ Update Preview"), button -> {
             updatePreview();
-        }).dimensions(centerX - 100, height - 90, 100, 20).build();
+        }).dimensions(centerX - previewButtonWidth - 5, bottomButtonY, previewButtonWidth, controlHeight).build();
         addDrawableChild(previewButton);
         
         sendButton = ButtonWidget.builder(Text.literal("✓ Send Trade"), button -> {
             sendTrade();
-        }).dimensions(centerX + 10, height - 90, 100, 20).build();
+        }).dimensions(centerX + 5, bottomButtonY, sendButtonWidth, controlHeight).build();
         addDrawableChild(sendButton);
         
         addOfferingInput();
@@ -87,20 +96,22 @@ public class TradeComposerScreen extends Screen {
     private void addOfferingInput() {
         int index = offeringInputs.size();
         int y = 100 + index * 30;
+        int panelHalfWidth = Math.min(220, (width - 40) / 2);
         
         if (y > 160) return;
         
-        ItemInputGroup group = new ItemInputGroup(this, width / 2 - 200, y, true, index);
+        ItemInputGroup group = new ItemInputGroup(this, width / 2 - panelHalfWidth, y, true, index);
         offeringInputs.add(group);
     }
     
     private void addRequestingInput() {
         int index = requestingInputs.size();
         int y = 240 + index * 30;
+        int panelHalfWidth = Math.min(220, (width - 40) / 2);
         
         if (y > 300) return;
         
-        ItemInputGroup group = new ItemInputGroup(this, width / 2 - 200, y, false, index);
+        ItemInputGroup group = new ItemInputGroup(this, width / 2 - panelHalfWidth, y, false, index);
         requestingInputs.add(group);
     }
     
@@ -123,11 +134,12 @@ public class TradeComposerScreen extends Screen {
     }
     
     private void repositionInputs() {
+        int panelHalfWidth = Math.min(220, (width - 40) / 2);
         for (int i = 0; i < offeringInputs.size(); i++) {
-            offeringInputs.get(i).setPosition(width / 2 - 200, 100 + i * 30);
+            offeringInputs.get(i).setPosition(width / 2 - panelHalfWidth, 100 + i * 30);
         }
         for (int i = 0; i < requestingInputs.size(); i++) {
-            requestingInputs.get(i).setPosition(width / 2 - 200, 240 + i * 30);
+            requestingInputs.get(i).setPosition(width / 2 - panelHalfWidth, 240 + i * 30);
         }
     }
     
@@ -308,26 +320,30 @@ public class TradeComposerScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         int centerX = width / 2;
         int startY = 40;
+        int margin = 20;
+        int panelHalfWidth = Math.min(220, (width - margin * 2) / 2);
+        int panelWidth = panelHalfWidth * 2;
         
         int offeringPanelY = startY;
         int offeringPanelHeight = 150;
-        context.fill(centerX - 220, offeringPanelY, centerX + 220, offeringPanelY + offeringPanelHeight, PANEL_COLOR);
-        context.drawBorder(centerX - 220, offeringPanelY, 440, offeringPanelHeight, PANEL_BORDER_COLOR);
-        context.fill(centerX - 220, offeringPanelY, centerX + 220, offeringPanelY + 30, HEADER_COLOR);
-        context.drawText(textRenderer, "§6I'm Offering:", centerX - 210, offeringPanelY + 10, 0xFFFFFFFF, false);
+        context.fill(centerX - panelHalfWidth, offeringPanelY, centerX + panelHalfWidth, offeringPanelY + offeringPanelHeight, PANEL_COLOR);
+        context.drawBorder(centerX - panelHalfWidth, offeringPanelY, panelWidth, offeringPanelHeight, PANEL_BORDER_COLOR);
+        context.fill(centerX - panelHalfWidth, offeringPanelY, centerX + panelHalfWidth, offeringPanelY + 30, HEADER_COLOR);
+        context.drawText(textRenderer, "§6I'm Offering:", centerX - panelHalfWidth + 10, offeringPanelY + 10, 0xFFFFFFFF, false);
         
         int requestingPanelY = offeringPanelY + offeringPanelHeight + 10;
         int requestingPanelHeight = 150;
-        context.fill(centerX - 220, requestingPanelY, centerX + 220, requestingPanelY + requestingPanelHeight, PANEL_COLOR);
-        context.drawBorder(centerX - 220, requestingPanelY, 440, requestingPanelHeight, PANEL_BORDER_COLOR);
-        context.fill(centerX - 220, requestingPanelY, centerX + 220, requestingPanelY + 30, HEADER_COLOR);
-        context.drawText(textRenderer, "§6I'm Requesting:", centerX - 210, requestingPanelY + 10, 0xFFFFFFFF, false);
+        context.fill(centerX - panelHalfWidth, requestingPanelY, centerX + panelHalfWidth, requestingPanelY + requestingPanelHeight, PANEL_COLOR);
+        context.drawBorder(centerX - panelHalfWidth, requestingPanelY, panelWidth, requestingPanelHeight, PANEL_BORDER_COLOR);
+        context.fill(centerX - panelHalfWidth, requestingPanelY, centerX + panelHalfWidth, requestingPanelY + 30, HEADER_COLOR);
+        context.drawText(textRenderer, "§6I'm Requesting:", centerX - panelHalfWidth + 10, requestingPanelY + 10, 0xFFFFFFFF, false);
         
         int previewY = requestingPanelY + requestingPanelHeight + 20;
-        context.fill(centerX - 220, previewY, centerX + 220, previewY + 50, PANEL_COLOR);
-        context.drawBorder(centerX - 220, previewY, 440, 50, PANEL_BORDER_COLOR);
-        context.drawText(textRenderer, "§ePreview (Carnite):", centerX - 210, previewY + 10, 0xFFFFFFFF, false);
-        context.drawText(textRenderer, "§7" + previewMessage, centerX - 210, previewY + 25, 0xFFFFFFFF, false);
+        int previewHeight = 50;
+        context.fill(centerX - panelHalfWidth, previewY, centerX + panelHalfWidth, previewY + previewHeight, PANEL_COLOR);
+        context.drawBorder(centerX - panelHalfWidth, previewY, panelWidth, previewHeight, PANEL_BORDER_COLOR);
+        context.drawText(textRenderer, "§ePreview (Carnite):", centerX - panelHalfWidth + 10, previewY + 10, 0xFFFFFFFF, false);
+        context.drawText(textRenderer, "§7" + previewMessage, centerX - panelHalfWidth + 10, previewY + 25, 0xFFFFFFFF, false);
         
         context.drawCenteredTextWithShadow(textRenderer, this.title, centerX, 20, 0xFFFFFFFF);
         
