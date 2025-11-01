@@ -140,7 +140,7 @@ public class CarniteComposerScreen extends Screen {
             int symbolsPerRow = Math.max(1, leftPanelWidth / 35);
             int maxSymbolRows = height >= 500 ? 3 : 2;
             this.symbolGridY = leftPanel.getCurrentY();
-            var symbolGrid = SimpleLayout.grid(margin, this.symbolGridY, symbolsPerRow, 30, 18, 5, 5);
+            var symbolGrid = SimpleLayout.grid(margin, this.symbolGridY + 4, symbolsPerRow, 30, 18, 5, 5);
             
             int count = 0;
             for (Map.Entry<String, String> entry : symbols.entrySet()) {
@@ -314,7 +314,7 @@ public class CarniteComposerScreen extends Screen {
         
         // Symbol helper section
         if (symbolGridY > 0) {
-            context.drawText(textRenderer, "Quick Symbols:", margin, symbolGridY - 12, 0xFFFFFFFF, false);
+            context.drawText(textRenderer, "Quick Symbols:", margin, symbolGridY - 6, 0xFFFFFFFF, false);
         }
         
         // Color panel title
