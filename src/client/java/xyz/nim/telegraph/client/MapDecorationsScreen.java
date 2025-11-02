@@ -282,7 +282,6 @@ public class MapDecorationsScreen extends Screen {
         context.drawVerticalLine(x + width - 1, y, y + height - 1, PANEL_BORDER_COLOR);
     }
     
-    @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (renameField != null && renameField.isFocused()) {
             if (keyCode == 257 || keyCode == 335) {
@@ -300,7 +299,7 @@ public class MapDecorationsScreen extends Screen {
                 return true;
             }
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return false;
     }
     
     private void updateChannelList() {
@@ -484,7 +483,7 @@ public class MapDecorationsScreen extends Screen {
         }
         
         public void clearEntries() {
-            this.children().clear();
+            super.clearEntries();
         }
         
         public void addChannelEntry(ChannelEntry entry) {
@@ -516,8 +515,12 @@ public class MapDecorationsScreen extends Screen {
                 this.onSelect = onSelect;
             }
             
-            @Override
-            public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+                int x = getX();
+                int y = getY();
+                int entryWidth = getWidth();
+                int entryHeight = getHeight();
+                
                 int bgColor = selected ? 0x60FFFFFF : (hovered ? 0x40FFFFFF : 0x00000000);
                 if (bgColor != 0) {
                     context.fill(x, y, x + entryWidth, y + entryHeight, bgColor);
@@ -527,7 +530,6 @@ public class MapDecorationsScreen extends Screen {
                 context.drawText(client.textRenderer, displayName, x + 4, y + (entryHeight - 8) / 2, textColor, false);
             }
             
-            @Override
             public boolean mouseClicked(double mouseX, double mouseY, int button) {
                 if (button == 0) {
                     onSelect.accept(mapId);
@@ -550,7 +552,7 @@ public class MapDecorationsScreen extends Screen {
         }
         
         public void clearEntries() {
-            this.children().clear();
+            super.clearEntries();
         }
         
         public void addMessageEntry(MessageEntry entry) {
@@ -586,8 +588,12 @@ public class MapDecorationsScreen extends Screen {
                 this.translation = translation;
             }
             
-            @Override
-            public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+                int x = getX();
+                int y = getY();
+                int entryWidth = getWidth();
+                int entryHeight = getHeight();
+                
                 context.drawText(client.textRenderer, message, x + 4, y + 2, color, false);
                 
                 // Draw translation below the Carnite message

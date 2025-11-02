@@ -7,6 +7,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import xyz.nim.telegraph.client.carnite.CarniteVocabulary;
+import xyz.nim.telegraph.client.util.GuiUtil;
 
 import java.util.*;
 
@@ -167,7 +168,7 @@ public class GlobalSettingsScreen extends Screen {
         int civHeaderY = y;
         
         context.fill(margin, civHeaderY, margin + panelWidth, civHeaderY + headerHeight, HEADER_COLOR);
-        context.drawBorder(margin, civHeaderY, panelWidth, headerHeight, PANEL_BORDER_COLOR);
+        GuiUtil.drawBorder(context, margin, civHeaderY, panelWidth, headerHeight, PANEL_BORDER_COLOR);
         context.drawText(textRenderer, "§eGlobal Civilizations", margin + 8, civHeaderY + 10, 0xFFFFFFFF, false);
         
         y += 120;
@@ -232,9 +233,11 @@ public class GlobalSettingsScreen extends Screen {
                 this.onRemove = onRemove;
             }
             
-            @Override
-            public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, 
-                              int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+                int x = getX();
+                int y = getY();
+                int entryWidth = getWidth();
+                int entryHeight = getHeight();
                 
                 context.drawText(client.textRenderer, "§6" + code, x + 5, y + 6, 0xFFFFFFFF, false);
                 context.drawText(client.textRenderer, "§f→ " + name, x + 60, y + 6, 0xFFFFFFFF, false);
@@ -251,9 +254,13 @@ public class GlobalSettingsScreen extends Screen {
                 removeButton.render(context, mouseX, mouseY, tickDelta);
             }
             
-            @Override
             public boolean mouseClicked(double mouseX, double mouseY, int button) {
-                return (removeButton != null && removeButton.mouseClicked(mouseX, mouseY, button)) || super.mouseClicked(mouseX, mouseY, button);
+                if (removeButton != null && removeButton.isMouseOver(mouseX, mouseY) && button == 0) {
+                    removeButton.playDownSound(client.getSoundManager());
+                    onRemove.accept(code);
+                    return true;
+                }
+                return false;
             }
             
             @Override

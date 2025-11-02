@@ -25,7 +25,7 @@ public class TelegraphClient implements ClientModInitializer {
             "key.telegraph.open_menu",
             InputUtil.Type.KEYSYM,
             GLFW.GLFW_KEY_M,
-            "category.telegraph"
+            KeyBinding.Category.MISC
         ));
         
         ClientTickEvents.END_CLIENT_TICK.register(client -> {

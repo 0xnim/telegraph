@@ -4,6 +4,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
+import xyz.nim.telegraph.client.util.GuiUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -109,7 +110,7 @@ public class DropdownWidget {
         boolean needsScroll = options.size() > maxVisibleOptions;
         
         context.fill(x, dropdownY, x + width, dropdownY + dropdownHeight, BACKGROUND_COLOR);
-        context.drawBorder(x, dropdownY, width, dropdownHeight, BORDER_COLOR);
+        GuiUtil.drawBorder(context, x, dropdownY, width, dropdownHeight, BORDER_COLOR);
         
         int maxScroll = Math.max(0, options.size() - maxVisibleOptions);
         scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll));

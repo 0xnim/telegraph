@@ -9,6 +9,7 @@ import xyz.nim.telegraph.client.ChannelSettings;
 import xyz.nim.telegraph.client.TelegraphChannel;
 import xyz.nim.telegraph.client.carnite.CarniteComposerScreen;
 import xyz.nim.telegraph.client.carnite.CarniteVocabulary;
+import xyz.nim.telegraph.client.util.GuiUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -327,21 +328,21 @@ public class TradeComposerScreen extends Screen {
         int offeringPanelY = startY;
         int offeringPanelHeight = 150;
         context.fill(centerX - panelHalfWidth, offeringPanelY, centerX + panelHalfWidth, offeringPanelY + offeringPanelHeight, PANEL_COLOR);
-        context.drawBorder(centerX - panelHalfWidth, offeringPanelY, panelWidth, offeringPanelHeight, PANEL_BORDER_COLOR);
+        GuiUtil.drawBorder(context, centerX - panelHalfWidth, offeringPanelY, panelWidth, offeringPanelHeight, PANEL_BORDER_COLOR);
         context.fill(centerX - panelHalfWidth, offeringPanelY, centerX + panelHalfWidth, offeringPanelY + 30, HEADER_COLOR);
         context.drawText(textRenderer, "§6I'm Offering:", centerX - panelHalfWidth + 10, offeringPanelY + 10, 0xFFFFFFFF, false);
         
         int requestingPanelY = offeringPanelY + offeringPanelHeight + 10;
         int requestingPanelHeight = 150;
         context.fill(centerX - panelHalfWidth, requestingPanelY, centerX + panelHalfWidth, requestingPanelY + requestingPanelHeight, PANEL_COLOR);
-        context.drawBorder(centerX - panelHalfWidth, requestingPanelY, panelWidth, requestingPanelHeight, PANEL_BORDER_COLOR);
+        GuiUtil.drawBorder(context, centerX - panelHalfWidth, requestingPanelY, panelWidth, requestingPanelHeight, PANEL_BORDER_COLOR);
         context.fill(centerX - panelHalfWidth, requestingPanelY, centerX + panelHalfWidth, requestingPanelY + 30, HEADER_COLOR);
         context.drawText(textRenderer, "§6I'm Requesting:", centerX - panelHalfWidth + 10, requestingPanelY + 10, 0xFFFFFFFF, false);
         
         int previewY = requestingPanelY + requestingPanelHeight + 20;
         int previewHeight = 50;
         context.fill(centerX - panelHalfWidth, previewY, centerX + panelHalfWidth, previewY + previewHeight, PANEL_COLOR);
-        context.drawBorder(centerX - panelHalfWidth, previewY, panelWidth, previewHeight, PANEL_BORDER_COLOR);
+        GuiUtil.drawBorder(context, centerX - panelHalfWidth, previewY, panelWidth, previewHeight, PANEL_BORDER_COLOR);
         context.drawText(textRenderer, "§ePreview (Carnite):", centerX - panelHalfWidth + 10, previewY + 10, 0xFFFFFFFF, false);
         context.drawText(textRenderer, "§7" + previewMessage, centerX - panelHalfWidth + 10, previewY + 25, 0xFFFFFFFF, false);
         

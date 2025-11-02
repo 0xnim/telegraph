@@ -9,6 +9,7 @@ import net.minecraft.text.Text;
 import xyz.nim.telegraph.client.ChannelSettings;
 import xyz.nim.telegraph.client.TelegraphChannel;
 import xyz.nim.telegraph.client.carnite.CarniteComposerScreen;
+import xyz.nim.telegraph.client.util.GuiUtil;
 
 import java.time.format.DateTimeFormatter;
 
@@ -255,12 +256,12 @@ public class TradesDashboardScreen extends Screen {
         int topBarY = PANEL_MARGIN;
         int topBarHeight = BUTTON_HEIGHT + PANEL_PADDING * 2;
         context.fill(PANEL_MARGIN, topBarY, width - PANEL_MARGIN, topBarY + topBarHeight, PANEL_COLOR);
-        context.drawBorder(PANEL_MARGIN, topBarY, width - PANEL_MARGIN * 2, topBarHeight, PANEL_BORDER_COLOR);
+        GuiUtil.drawBorder(context, PANEL_MARGIN, topBarY, width - PANEL_MARGIN * 2, topBarHeight, PANEL_BORDER_COLOR);
         
         int filterBarY = topBarY + topBarHeight + 5;
         int filterBarHeight = BUTTON_HEIGHT + PANEL_PADDING * 2;
         context.fill(PANEL_MARGIN, filterBarY, width - PANEL_MARGIN, filterBarY + filterBarHeight, PANEL_COLOR);
-        context.drawBorder(PANEL_MARGIN, filterBarY, width - PANEL_MARGIN * 2, filterBarHeight, PANEL_BORDER_COLOR);
+        GuiUtil.drawBorder(context, PANEL_MARGIN, filterBarY, width - PANEL_MARGIN * 2, filterBarHeight, PANEL_BORDER_COLOR);
         
         int leftPanelWidth = (int) (width * 0.55);
         int leftPanelX = PANEL_MARGIN;
@@ -268,7 +269,7 @@ public class TradesDashboardScreen extends Screen {
         int leftPanelHeight = height - leftPanelY - PANEL_MARGIN;
         
         context.fill(leftPanelX, leftPanelY, leftPanelX + leftPanelWidth, leftPanelY + leftPanelHeight, PANEL_COLOR);
-        context.drawBorder(leftPanelX, leftPanelY, leftPanelWidth, leftPanelHeight, PANEL_BORDER_COLOR);
+        GuiUtil.drawBorder(context, leftPanelX, leftPanelY, leftPanelWidth, leftPanelHeight, PANEL_BORDER_COLOR);
         
         context.fill(leftPanelX + PANEL_PADDING, leftPanelY + PANEL_PADDING, leftPanelX + leftPanelWidth - PANEL_PADDING, leftPanelY + PANEL_PADDING + HEADER_HEIGHT, HEADER_COLOR);
         context.drawText(textRenderer, "Trade Offers", leftPanelX + PANEL_PADDING * 2, 
@@ -278,7 +279,7 @@ public class TradesDashboardScreen extends Screen {
         int rightPanelWidth = width - rightPanelX - PANEL_MARGIN;
         
         context.fill(rightPanelX, leftPanelY, rightPanelX + rightPanelWidth, leftPanelY + leftPanelHeight, PANEL_COLOR);
-        context.drawBorder(rightPanelX, leftPanelY, rightPanelWidth, leftPanelHeight, PANEL_BORDER_COLOR);
+        GuiUtil.drawBorder(context, rightPanelX, leftPanelY, rightPanelWidth, leftPanelHeight, PANEL_BORDER_COLOR);
         
         context.fill(rightPanelX + PANEL_PADDING, leftPanelY + PANEL_PADDING, rightPanelX + rightPanelWidth - PANEL_PADDING, leftPanelY + PANEL_PADDING + HEADER_HEIGHT, HEADER_COLOR);
         context.drawText(textRenderer, "Trade Details", rightPanelX + PANEL_PADDING * 2, 
@@ -456,9 +457,11 @@ public class TradesDashboardScreen extends Screen {
             this.trade = trade;
         }
         
-        @Override
-        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, 
-                          int mouseX, int mouseY, boolean hovered, float tickDelta) {
+        public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            int x = getX();
+            int y = getY();
+            int entryWidth = getWidth();
+            int entryHeight = getHeight();
             
             int statusColor = trade.getStatus().getColor();
             String statusText = trade.getStatus().getDisplayName();
@@ -484,7 +487,6 @@ public class TradesDashboardScreen extends Screen {
             context.drawText(textRenderer, timeStr, x + entryWidth - 40, y + 2, 0xFF888888, false);
         }
         
-        @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             selectedTrade = trade;
             return true;

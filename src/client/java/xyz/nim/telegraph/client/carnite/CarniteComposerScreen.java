@@ -10,6 +10,7 @@ import xyz.nim.telegraph.client.TelegraphChannel;
 import xyz.nim.telegraph.client.ui.DropdownWidget;
 import xyz.nim.telegraph.client.ui.SimpleLayout;
 import xyz.nim.telegraph.client.ui.SimpleLayout.Box;
+import xyz.nim.telegraph.client.util.GuiUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -375,7 +376,7 @@ public class CarniteComposerScreen extends Screen {
         
         // Background panel
         context.fill(margin, panelY, margin + panelWidth, panelY + panelHeight, 0xE0000033);
-        context.drawBorder(margin, panelY, panelWidth, panelHeight, 0xFF00AAFF);
+        GuiUtil.drawBorder(context, margin, panelY, panelWidth, panelHeight, 0xFF00AAFF);
         
         int contentY = panelY + 10;
         int contentX = margin + 10;
@@ -497,7 +498,7 @@ public class CarniteComposerScreen extends Screen {
         
         // Background panel
         context.fill(margin, panelY, margin + panelWidth, panelY + panelHeight, 0xE0000000);
-        context.drawBorder(margin, panelY, panelWidth, panelHeight, 0xFF00FF00);
+        GuiUtil.drawBorder(context, margin, panelY, panelWidth, panelHeight, 0xFF00FF00);
         
         int contentY = panelY + 5;
         int contentX = margin + 5;
@@ -550,7 +551,7 @@ public class CarniteComposerScreen extends Screen {
             
             int tooltipY = panelY + panelHeight - 40;
             context.fill(contentX, tooltipY, margin + panelWidth - 5, panelY + panelHeight - 5, 0xFF1A1A1A);
-            context.drawBorder(contentX, tooltipY, panelWidth - 10, 35, 0xFFFFFF00);
+            GuiUtil.drawBorder(context, contentX, tooltipY, panelWidth - 10, 35, 0xFFFFFF00);
             
             context.drawText(textRenderer, "§e'" + part.text() + "' §f→ §b" + part.expanded(), 
                            contentX + 5, tooltipY + 5, 0xFFFFFFFF, false);
@@ -585,7 +586,7 @@ public class CarniteComposerScreen extends Screen {
         
         // Background panel
         context.fill(margin, panelY, margin + panelWidth, panelY + panelHeight, 0xE0001100);
-        context.drawBorder(margin, panelY, panelWidth, panelHeight, 0xFF00FFFF);
+        GuiUtil.drawBorder(context, margin, panelY, panelWidth, panelHeight, 0xFF00FFFF);
         
         int contentY = panelY + 10;
         int contentX = margin + 10;
@@ -671,7 +672,7 @@ public class CarniteComposerScreen extends Screen {
         
         // Background
         context.fill(overlayX, overlayY, overlayX + overlayW, overlayY + overlayH, 0xE0000000);
-        context.drawBorder(overlayX, overlayY, overlayW, overlayH, 0xFFFFFFFF);
+        GuiUtil.drawBorder(context, overlayX, overlayY, overlayW, overlayH, 0xFFFFFFFF);
         
         // Content
         int contentY = overlayY + 10;
@@ -725,15 +726,14 @@ public class CarniteComposerScreen extends Screen {
         }
     }
     
-    @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (templateDropdown != null && templateDropdown.mouseClicked(mouseX, mouseY, button)) {
+        if (templateDropdown != null && templateDropdown.isExpanded() && templateDropdown.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
-        if (colorDropdown != null && colorDropdown.mouseClicked(mouseX, mouseY, button)) {
+        if (colorDropdown != null && colorDropdown.isExpanded() && colorDropdown.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return false;
     }
     
     @Override
