@@ -15,22 +15,6 @@ public record TelegraphMessage(
         CHANGED
     }
     
-    public static TelegraphMessage from(BannerChangeEvent event) {
-        String content = switch (event.changeType()) {
-            case ADDED -> (event.decoration().name() != null ? event.decoration().name() : "Banner") + " added";
-            case REMOVED -> (event.oldDecoration().name() != null ? event.oldDecoration().name() : "Banner") + " removed";
-            case CHANGED -> (event.decoration().name() != null ? event.decoration().name() : "Banner") + " moved";
-        };
-        
-        return new TelegraphMessage(
-            event.mapId(),
-            content,
-            ChangeType.valueOf(event.changeType().name()),
-            Instant.now(),
-            event.decoration() != null ? event.decoration() : event.oldDecoration()
-        );
-    }
-    
     public static TelegraphMessage from(MapDecorationChangeEvent event) {
         DecorationSnapshot decoration = event.decoration() != null ? event.decoration() : event.oldDecoration();
         String decorationName = decoration.name() != null ? decoration.name() : decoration.type();

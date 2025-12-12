@@ -9,14 +9,11 @@ import org.lwjgl.glfw.GLFW;
 
 public class TelegraphClient implements ClientModInitializer {
 
-    private static final BannerTracker BANNER_TRACKER = new BannerTracker();
     private static final MapDecorationTracker MAP_DECORATION_TRACKER = new MapDecorationTracker();
     private static KeyBinding openMenuKey;
 
     @Override
     public void onInitializeClient() {
-        BANNER_TRACKER.registerListener(BANNER_TRACKER::defaultChatHandler);
-
         MAP_DECORATION_TRACKER.registerListener(MAP_DECORATION_TRACKER::defaultChatHandler);
         ClientTickEvents.END_CLIENT_TICK.register(MAP_DECORATION_TRACKER::onClientTick);
 
@@ -32,10 +29,6 @@ public class TelegraphClient implements ClientModInitializer {
                 client.setScreen(new MapDecorationsScreen(MAP_DECORATION_TRACKER.getTelegraphChannel()));
             }
         });
-    }
-
-    public static BannerTracker getBannerTracker() {
-        return BANNER_TRACKER;
     }
 
     public static MapDecorationTracker getMapDecorationTracker() {
