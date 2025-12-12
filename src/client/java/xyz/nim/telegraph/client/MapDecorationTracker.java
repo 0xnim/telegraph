@@ -1,185 +1,93 @@
 package xyz.nim.telegraph.client;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
+import net.minecraft.component.type.MapIdComponent;
 import net.minecraft.item.map.MapState;
 
 import java.util.*;
 import java.util.function.Consumer;
 
 public class MapDecorationTracker {
-    private static final int DEFAULT_SCAN_CADENCE = 5;
-    private static final int DEFAULT_HOTBAR_SIZE = 9;
-    private static final int MAP_REFRESH_INTERVAL = 1200;
-    private static final int MAP_REFRESH_DURATION = 4;
-    
+    private static final int SAVE_INTERVAL = 1200;
+
+    private static MapDecorationTracker instance;
+
     private final Map<Integer, Map<String, DecorationSnapshot>> mapCache = new HashMap<>();
     private final List<Consumer<MapDecorationChangeEvent>> listeners = new ArrayList<>();
     private final TelegraphChannel telegraphChannel = new TelegraphChannel();
     private final NotificationManager notificationManager;
     private final PersistenceManager persistenceManager;
-    private final int scanCadence;
-    private final int slotsToScan;
     private int tickCounter = 0;
     private int saveCounter = 0;
-    private int refreshCounter = 0;
-    private int refreshingMapIndex = -1;
-    private int refreshHoldTicks = 0;
-    private ItemStack originalOffhandItem = ItemStack.EMPTY;
-    private boolean mapRefreshEnabled = false;
-    private static final int SAVE_INTERVAL = 1200;
-    
-    public MapDecorationTracker(int scanCadence, int slotsToScan) {
-        this.scanCadence = scanCadence;
-        this.slotsToScan = slotsToScan;
+
+    public MapDecorationTracker() {
         this.notificationManager = new NotificationManager(telegraphChannel);
         this.persistenceManager = new PersistenceManager();
-        
+
         persistenceManager.loadChannelSettings(telegraphChannel);
         persistenceManager.loadMessages(telegraphChannel);
         persistenceManager.loadCivilizations();
-        this.mapRefreshEnabled = persistenceManager.loadMapRefreshEnabled();
+
+        instance = this;
     }
-    
-    public MapDecorationTracker() {
-        this(DEFAULT_SCAN_CADENCE, DEFAULT_HOTBAR_SIZE);
+
+    public static void onMapUpdate(MapIdComponent mapIdComponent) {
+        if (instance != null) {
+            instance.processMap(mapIdComponent);
+        }
     }
-    
+
     public PersistenceManager getPersistenceManager() {
         return persistenceManager;
     }
-    
+
     public void registerListener(Consumer<MapDecorationChangeEvent> listener) {
         listeners.add(listener);
     }
-    
+
     public TelegraphChannel getTelegraphChannel() {
         return telegraphChannel;
     }
-    
-    public boolean isMapRefreshEnabled() {
-        return mapRefreshEnabled;
-    }
-    
-    public void setMapRefreshEnabled(boolean enabled) {
-        this.mapRefreshEnabled = enabled;
-        persistenceManager.saveGlobalSettings(enabled);
-        if (!enabled) {
-            refreshCounter = 0;
-            if (refreshingMapIndex >= 0) {
-                MinecraftClient client = MinecraftClient.getInstance();
-                if (client != null && client.player != null) {
-                    client.player.getInventory().setStack(PlayerInventory.OFF_HAND_SLOT, originalOffhandItem);
-                }
-                refreshingMapIndex = -1;
-                originalOffhandItem = ItemStack.EMPTY;
-            }
-        }
-    }
-    
+
     public void onClientTick(MinecraftClient client) {
-        PlayerEntity player = client.player;
-        if (player == null) {
+        if (client.player == null) {
             return;
         }
-        
-        handleMapRefresh(client, player);
-        
-        if (++tickCounter % scanCadence != 0) {
+
+        if (++tickCounter % 20 != 0) {
             return;
         }
-        
-        for (int i = 0; i < Math.min(slotsToScan, player.getInventory().size()); i++) {
-            ItemStack stack = player.getInventory().getStack(i);
-            if (stack.getItem() == Items.FILLED_MAP) {
-                var mapIdComponent = stack.get(DataComponentTypes.MAP_ID);
-                if (mapIdComponent != null) {
-                    updateChannelName(stack);
-                    processMap(stack);
-                }
-            }
-        }
-        
-        if (++saveCounter >= SAVE_INTERVAL) {
+
+        if (++saveCounter >= SAVE_INTERVAL / 20) {
             saveCounter = 0;
             persistenceManager.saveChannelSettings(telegraphChannel);
             persistenceManager.saveMessages(telegraphChannel);
         }
     }
-    
-    private void handleMapRefresh(MinecraftClient client, PlayerEntity player) {
-        if (!mapRefreshEnabled) {
-            return;
-        }
-        
-        if (refreshingMapIndex >= 0) {
-            if (--refreshHoldTicks <= 0) {
-                refreshingMapIndex = -1;
-                player.getInventory().setStack(PlayerInventory.OFF_HAND_SLOT, originalOffhandItem);
-                originalOffhandItem = ItemStack.EMPTY;
-            }
-            return;
-        }
-        
-        if (++refreshCounter >= MAP_REFRESH_INTERVAL) {
-            refreshCounter = 0;
-            
-            for (int i = 0; i < Math.min(slotsToScan, player.getInventory().size()); i++) {
-                ItemStack stack = player.getInventory().getStack(i);
-                if (stack.getItem() == Items.FILLED_MAP) {
-                    originalOffhandItem = player.getInventory().getStack(PlayerInventory.OFF_HAND_SLOT).copy();
-                    player.getInventory().setStack(PlayerInventory.OFF_HAND_SLOT, stack.copy());
-                    refreshingMapIndex = i;
-                    refreshHoldTicks = MAP_REFRESH_DURATION;
-                    break;
-                }
-            }
-        }
-    }
-    
-    private void updateChannelName(ItemStack mapStack) {
-        var mapIdComponent = mapStack.get(DataComponentTypes.MAP_ID);
-        if (mapIdComponent == null) return;
-        
-        var customNameComponent = mapStack.get(DataComponentTypes.CUSTOM_NAME);
-        if (customNameComponent != null) {
-            String customName = customNameComponent.getString();
-            telegraphChannel.setChannelName(mapIdComponent.id(), customName);
-        }
-    }
-    
-    private void processMap(ItemStack mapStack) {
+
+    private void processMap(MapIdComponent mapIdComponent) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client == null || client.world == null) {
             return;
         }
-        
-        var mapIdComponent = mapStack.get(DataComponentTypes.MAP_ID);
-        if (mapIdComponent == null) {
+
+        int mapId = mapIdComponent.id();
+
+        MapState mapState = client.world.getMapState(mapIdComponent);
+        if (mapState == null) {
             return;
         }
-        int mapId = mapIdComponent.id();
-        
+
         boolean isNewChannel = telegraphChannel.ensureChannelExists(mapId);
         if (isNewChannel) {
             telegraphChannel.addWelcomeMessage(mapId);
         }
-        
-        MapState mapState = client.world.getMapState(mapIdComponent);
-        if (mapState == null) {
-            mapCache.putIfAbsent(mapId, new HashMap<>());
-            return;
-        }
-        
+
         Map<String, DecorationSnapshot> newSnapshot = new HashMap<>();
-        
+
         for (var decoration : mapState.getDecorations()) {
             String assetId = decoration.type().value().assetId().toString();
-            
+
             if (assetId.contains("banner")) {
                 String name = decoration.name().map(text -> text.getString()).orElse(null);
                 String key = assetId + "_" + decoration.x() + "_" + decoration.z();
@@ -192,9 +100,9 @@ public class MapDecorationTracker {
                 ));
             }
         }
-        
+
         Map<String, DecorationSnapshot> oldSnapshot = mapCache.get(mapId);
-        
+
         if (oldSnapshot == null) {
             for (var entry : newSnapshot.entrySet()) {
                 fireEvent(new MapDecorationChangeEvent(
@@ -208,7 +116,7 @@ public class MapDecorationTracker {
         } else {
             Set<String> oldKeys = new HashSet<>(oldSnapshot.keySet());
             Set<String> newKeys = new HashSet<>(newSnapshot.keySet());
-            
+
             for (String key : newKeys) {
                 if (!oldKeys.contains(key)) {
                     fireEvent(new MapDecorationChangeEvent(
@@ -232,7 +140,7 @@ public class MapDecorationTracker {
                     }
                 }
             }
-            
+
             for (String key : oldKeys) {
                 if (!newKeys.contains(key)) {
                     fireEvent(new MapDecorationChangeEvent(
@@ -245,18 +153,18 @@ public class MapDecorationTracker {
                 }
             }
         }
-        
+
         mapCache.put(mapId, newSnapshot);
     }
-    
+
     private void fireEvent(MapDecorationChangeEvent event) {
         notificationManager.notifyDecorationChange(event);
-        
+
         for (Consumer<MapDecorationChangeEvent> listener : listeners) {
             listener.accept(event);
         }
     }
-    
+
     public void defaultChatHandler(MapDecorationChangeEvent event) {
         TelegraphMessage telegraphMessage = TelegraphMessage.from(event);
         telegraphChannel.addMessage(telegraphMessage);
