@@ -6,9 +6,13 @@ import net.minecraft.client.gui.widget.AlwaysSelectedEntryListWidget;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
+import xyz.nim.telegraph.client.ui.DropdownWidget;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class MapDecorationsScreen extends Screen {
     private static final int PANEL_MARGIN = 10;
@@ -31,6 +35,11 @@ public class MapDecorationsScreen extends Screen {
     private ButtonWidget settingsButton;
     private ChannelListWidget channelList;
     private MessageListWidget messageList;
+
+    private final ChannelFilter channelFilter = new ChannelFilter();
+    private TextFieldWidget searchField;
+    private DropdownWidget sortDropdown;
+    private ButtonWidget browseButton;
     
     private enum ViewTab {
         RAW("Raw"),
@@ -61,14 +70,45 @@ public class MapDecorationsScreen extends Screen {
         int leftPanelX = PANEL_MARGIN;
         int leftPanelY = PANEL_MARGIN;
         int leftPanelHeight = height - PANEL_MARGIN * 2;
-        
-        int channelListY = leftPanelY + PANEL_PADDING + HEADER_HEIGHT;
+
+        int filterBarY = leftPanelY + PANEL_PADDING + HEADER_HEIGHT;
+        int filterBarHeight = BUTTON_HEIGHT + 4;
+
+        int searchWidth = leftPanelWidth - PANEL_PADDING * 2 - 50;
+        searchField = new TextFieldWidget(textRenderer, leftPanelX + PANEL_PADDING, filterBarY, searchWidth, BUTTON_HEIGHT, Text.literal("Search"));
+        searchField.setPlaceholder(Text.literal("Search..."));
+        searchField.setMaxLength(32);
+        searchField.setChangedListener(text -> {
+            channelFilter.setSearchText(text);
+            updateChannelList();
+        });
+        addDrawableChild(searchField);
+
+        browseButton = ButtonWidget.builder(Text.literal("..."), button -> {
+            if (client != null) {
+                client.setScreen(new ChannelBrowserScreen(this, channel));
+            }
+        }).dimensions(leftPanelX + PANEL_PADDING + searchWidth + 4, filterBarY, 40, BUTTON_HEIGHT).build();
+        addDrawableChild(browseButton);
+
+        int sortY = filterBarY + BUTTON_HEIGHT + 4;
+        List<DropdownWidget.DropdownOption> sortOptions = Arrays.stream(ChannelSortOption.values())
+            .map(opt -> new DropdownWidget.DropdownOption(opt.name(), opt.getLabel()))
+            .collect(Collectors.toList());
+        sortDropdown = new DropdownWidget(client, leftPanelX + PANEL_PADDING, sortY, leftPanelWidth - PANEL_PADDING * 2, BUTTON_HEIGHT, sortOptions, value -> {
+            channelFilter.setSortOption(ChannelSortOption.valueOf(value));
+            updateChannelList();
+        });
+        addDrawableChild(sortDropdown.getButton());
+
+        int channelListY = sortY + BUTTON_HEIGHT + 4;
+        int channelListHeight = leftPanelHeight - PANEL_PADDING * 2 - BUTTON_HEIGHT * 4 - 10 - HEADER_HEIGHT - filterBarHeight - BUTTON_HEIGHT - 8;
         channelList = new ChannelListWidget(
             client,
             leftPanelWidth - PANEL_PADDING * 2,
-            leftPanelHeight - PANEL_PADDING * 2 - BUTTON_HEIGHT * 4 - 10 - HEADER_HEIGHT,
+            channelListHeight,
             channelListY,
-            BUTTON_HEIGHT
+            BUTTON_HEIGHT + 6
         );
         channelList.setX(leftPanelX + PANEL_PADDING);
         addDrawableChild(channelList);
@@ -237,42 +277,62 @@ public class MapDecorationsScreen extends Screen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
-        
+
         int leftPanelWidth = Math.min(180, width / 5);
         int leftPanelX = PANEL_MARGIN;
         int leftPanelY = PANEL_MARGIN;
         int leftPanelHeight = height - PANEL_MARGIN * 2;
-        
+
         drawPanel(context, leftPanelX, leftPanelY, leftPanelWidth, leftPanelHeight);
         context.drawText(textRenderer, "Channels", leftPanelX + PANEL_PADDING, leftPanelY + PANEL_PADDING + 4, 0xFFFFFFFF, false);
-        
+
         int rightPanelX = leftPanelX + leftPanelWidth + PANEL_MARGIN;
         int rightPanelY = PANEL_MARGIN;
         int rightPanelWidth = width - rightPanelX - PANEL_MARGIN;
         int rightPanelHeight = height - PANEL_MARGIN * 2;
-        
+
         drawPanel(context, rightPanelX, rightPanelY, rightPanelWidth, rightPanelHeight);
-        
+
         if (selectedMapId != -1) {
             String channelName = channel.getDisplayName(selectedMapId);
             context.drawText(textRenderer, channelName, rightPanelX + PANEL_PADDING, rightPanelY + PANEL_PADDING + 4, 0xFFFFFFFF, false);
         }
-        
+
         rawTabButton.active = currentTab != ViewTab.RAW;
         messagesTabButton.active = currentTab != ViewTab.MESSAGES;
         renameButton.active = selectedMapId != -1;
         protocolButton.active = selectedMapId != -1;
         settingsButton.active = selectedMapId != -1;
-        
+
         if (selectedMapId != -1) {
             ChannelSettings settings = channel.getSettings(selectedMapId);
-            boolean isTelegraphProtocol = settings != null && 
+            boolean isTelegraphProtocol = settings != null &&
                 settings.getProtocol() instanceof xyz.nim.telegraph.client.protocol.MapTelegraphProtocol;
             channelTypeButton.visible = isTelegraphProtocol;
             channelTypeButton.active = isTelegraphProtocol;
         } else {
             channelTypeButton.visible = false;
         }
+
+        if (sortDropdown != null) {
+            sortDropdown.render(context, mouseX, mouseY, delta);
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (sortDropdown != null && sortDropdown.mouseClicked(mouseX, mouseY, button)) {
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (sortDropdown != null && sortDropdown.mouseScrolled(mouseX, mouseY, verticalAmount)) {
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
     
     private void drawPanel(DrawContext context, int x, int y, int width, int height) {
@@ -305,17 +365,19 @@ public class MapDecorationsScreen extends Screen {
     
     private void updateChannelList() {
         if (channelList == null) return;
-        
+
         channelList.clearEntries();
-        
-        Map<Integer, String> channels = channel.getAllChannels();
-        for (Map.Entry<Integer, String> entry : channels.entrySet()) {
+
+        List<Integer> filteredIds = channelFilter.apply(channel);
+        for (int mapId : filteredIds) {
+            TelegraphChannel.ChannelMetadata metadata = channel.getMetadata(mapId);
             channelList.addChannelEntry(new ChannelListWidget.ChannelEntry(
                 client,
-                entry.getKey(),
-                entry.getValue(),
-                entry.getKey() == selectedMapId,
-                this::onChannelSelected
+                mapId,
+                metadata.displayName(),
+                mapId == selectedMapId,
+                this::onChannelSelected,
+                metadata
             ));
         }
     }
@@ -507,26 +569,44 @@ public class MapDecorationsScreen extends Screen {
             private final String displayName;
             private final boolean selected;
             private final java.util.function.Consumer<Integer> onSelect;
-            
+            private final TelegraphChannel.ChannelMetadata metadata;
+
             public ChannelEntry(net.minecraft.client.MinecraftClient client, int mapId, String displayName, boolean selected, java.util.function.Consumer<Integer> onSelect) {
+                this(client, mapId, displayName, selected, onSelect, null);
+            }
+
+            public ChannelEntry(net.minecraft.client.MinecraftClient client, int mapId, String displayName, boolean selected, java.util.function.Consumer<Integer> onSelect, TelegraphChannel.ChannelMetadata metadata) {
                 this.client = client;
                 this.mapId = mapId;
                 this.displayName = displayName;
                 this.selected = selected;
                 this.onSelect = onSelect;
+                this.metadata = metadata;
             }
-            
+
             @Override
             public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
                 int bgColor = selected ? 0x60FFFFFF : (hovered ? 0x40FFFFFF : 0x00000000);
                 if (bgColor != 0) {
                     context.fill(x, y, x + entryWidth, y + entryHeight, bgColor);
                 }
-                
+
                 int textColor = selected ? 0xFFFFFF00 : 0xFFFFFFFF;
-                context.drawText(client.textRenderer, displayName, x + 4, y + (entryHeight - 8) / 2, textColor, false);
+                context.drawText(client.textRenderer, displayName, x + 4, y + 2, textColor, false);
+
+                if (metadata != null) {
+                    String countText = String.valueOf(metadata.messageCount());
+                    int countWidth = client.textRenderer.getWidth(countText) + 4;
+                    context.fill(x + entryWidth - countWidth - 8, y + 2, x + entryWidth - 8, y + 12, 0x60555555);
+                    context.drawText(client.textRenderer, countText, x + entryWidth - countWidth - 6, y + 3, 0xFFAAAAAA, false);
+
+                    boolean isActive = metadata.lastActivity() != null &&
+                        metadata.lastActivity().isAfter(Instant.now().minus(Duration.ofHours(24)));
+                    int dotColor = isActive ? 0xFF55FF55 : 0xFF555555;
+                    context.fill(x + entryWidth - 6, y + entryHeight - 6, x + entryWidth - 2, y + entryHeight - 2, dotColor);
+                }
             }
-            
+
             @Override
             public boolean mouseClicked(double mouseX, double mouseY, int button) {
                 if (button == 0) {
@@ -535,7 +615,7 @@ public class MapDecorationsScreen extends Screen {
                 }
                 return false;
             }
-            
+
             @Override
             public Text getNarration() {
                 return Text.literal(displayName);

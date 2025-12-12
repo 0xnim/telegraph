@@ -1,5 +1,8 @@
 package xyz.nim.telegraph.client;
 
+import xyz.nim.telegraph.client.protocol.CarniteProtocol;
+
+import java.time.Instant;
 import java.util.*;
 
 public class TelegraphChannel {
@@ -162,4 +165,41 @@ public class TelegraphChannel {
     public Map<Integer, ChannelSettings> getAllSettings() {
         return new HashMap<>(channelSettings);
     }
+
+    public ChannelMetadata getMetadata(int mapId) {
+        List<TelegraphMessage> messages = getMessages(mapId);
+        ChannelSettings settings = getSettings(mapId);
+
+        Instant lastActivity = messages.stream()
+            .map(TelegraphMessage::timestamp)
+            .max(Instant::compareTo)
+            .orElse(null);
+
+        String protocolName = "Telegraph";
+        if (settings != null && settings.getProtocol() instanceof CarniteProtocol) {
+            protocolName = "Carnite";
+        }
+
+        return new ChannelMetadata(
+            mapId,
+            getDisplayName(mapId),
+            messages.size(),
+            lastActivity,
+            protocolName,
+            isArchived(mapId),
+            settings != null ? settings.getNotificationLevel() : ChannelSettings.NotificationLevel.ALL,
+            getTags(mapId)
+        );
+    }
+
+    public record ChannelMetadata(
+        int mapId,
+        String displayName,
+        int messageCount,
+        Instant lastActivity,
+        String protocolName,
+        boolean archived,
+        ChannelSettings.NotificationLevel notificationLevel,
+        List<String> tags
+    ) {}
 }
