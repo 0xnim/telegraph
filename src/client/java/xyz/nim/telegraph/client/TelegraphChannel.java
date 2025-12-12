@@ -10,6 +10,7 @@ public class TelegraphChannel {
     private final Map<Integer, List<TelegraphMessage>> messageHistory = new HashMap<>();
     private final Map<Integer, String> userSetNames = new HashMap<>();
     private final Map<Integer, ChannelSettings> channelSettings = new HashMap<>();
+    private final Map<Integer, Instant> lastSeenTimestamp = new HashMap<>();
     private static final int MAX_HISTORY = 100;
     
     public void setChannelName(int mapId, String name) {
@@ -166,6 +167,38 @@ public class TelegraphChannel {
         return new HashMap<>(channelSettings);
     }
 
+    public void markAsRead(int mapId) {
+        lastSeenTimestamp.put(mapId, Instant.now());
+    }
+
+    public int getUnreadCount(int mapId) {
+        Instant lastSeen = lastSeenTimestamp.get(mapId);
+        if (lastSeen == null) {
+            return getMessages(mapId).size();
+        }
+        return (int) getMessages(mapId).stream()
+            .filter(msg -> msg.timestamp().isAfter(lastSeen))
+            .count();
+    }
+
+    public boolean hasUnread(int mapId) {
+        return getUnreadCount(mapId) > 0;
+    }
+
+    public Instant getLastSeenTimestamp(int mapId) {
+        return lastSeenTimestamp.get(mapId);
+    }
+
+    public void setLastSeenTimestamp(int mapId, Instant timestamp) {
+        if (timestamp != null) {
+            lastSeenTimestamp.put(mapId, timestamp);
+        }
+    }
+
+    public Map<Integer, Instant> getAllLastSeenTimestamps() {
+        return new HashMap<>(lastSeenTimestamp);
+    }
+
     public ChannelMetadata getMetadata(int mapId) {
         List<TelegraphMessage> messages = getMessages(mapId);
         ChannelSettings settings = getSettings(mapId);
@@ -188,7 +221,8 @@ public class TelegraphChannel {
             protocolName,
             isArchived(mapId),
             settings != null ? settings.getNotificationLevel() : ChannelSettings.NotificationLevel.ALL,
-            getTags(mapId)
+            getTags(mapId),
+            getUnreadCount(mapId)
         );
     }
 
@@ -200,6 +234,7 @@ public class TelegraphChannel {
         String protocolName,
         boolean archived,
         ChannelSettings.NotificationLevel notificationLevel,
-        List<String> tags
+        List<String> tags,
+        int unreadCount
     ) {}
 }

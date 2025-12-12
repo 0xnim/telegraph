@@ -66,10 +66,16 @@ public class PersistenceManager {
                 channel.getChannelName(mapId).ifPresent(name -> userNames.put(mapId, name));
             }
             
+            Map<String, Long> lastSeen = new HashMap<>();
+            for (Map.Entry<Integer, Instant> entry : channel.getAllLastSeenTimestamps().entrySet()) {
+                lastSeen.put(String.valueOf(entry.getKey()), entry.getValue().toEpochMilli());
+            }
+
             Map<String, Object> data = new HashMap<>();
             data.put("settings", serialized);
             data.put("userNames", userNames);
-            
+            data.put("lastSeen", lastSeen);
+
             String json = gson.toJson(data);
             Files.writeString(settingsPath, json);
             
@@ -132,7 +138,16 @@ public class PersistenceManager {
                     channel.setUserChannelName(mapId, name);
                 }
             }
-            
+
+            if (root.has("lastSeen")) {
+                JsonObject lastSeenObj = root.getAsJsonObject("lastSeen");
+                for (Map.Entry<String, JsonElement> entry : lastSeenObj.entrySet()) {
+                    int mapId = Integer.parseInt(entry.getKey());
+                    long epochMilli = entry.getValue().getAsLong();
+                    channel.setLastSeenTimestamp(mapId, Instant.ofEpochMilli(epochMilli));
+                }
+            }
+
         } catch (IOException e) {
             System.err.println("Failed to load channel settings: " + e.getMessage());
         }

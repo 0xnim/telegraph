@@ -7,6 +7,8 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import xyz.nim.telegraph.client.ui.DropdownWidget;
+import xyz.nim.telegraph.client.ui.KeyboardConstants;
+import xyz.nim.telegraph.client.ui.ToastManager;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -32,7 +34,6 @@ public class MapDecorationsScreen extends Screen {
     private ButtonWidget messagesTabButton;
     private ButtonWidget protocolButton;
     private ButtonWidget channelTypeButton;
-    private ButtonWidget settingsButton;
     private ChannelListWidget channelList;
     private MessageListWidget messageList;
 
@@ -40,6 +41,7 @@ public class MapDecorationsScreen extends Screen {
     private TextFieldWidget searchField;
     private DropdownWidget sortDropdown;
     private ButtonWidget browseButton;
+    private final ToastManager toastManager = new ToastManager();
     
     private enum ViewTab {
         RAW("Raw"),
@@ -55,6 +57,12 @@ public class MapDecorationsScreen extends Screen {
     public MapDecorationsScreen(TelegraphChannel channel) {
         super(Text.literal("Map Decorations"));
         this.channel = channel;
+    }
+
+    public MapDecorationsScreen(TelegraphChannel channel, int preselectedMapId) {
+        super(Text.literal("Map Decorations"));
+        this.channel = channel;
+        this.selectedMapId = preselectedMapId;
     }
     
     @Override
@@ -114,21 +122,14 @@ public class MapDecorationsScreen extends Screen {
         addDrawableChild(channelList);
         
         int bottomButtonY = height - PANEL_MARGIN - PANEL_PADDING - BUTTON_HEIGHT;
-        
-        settingsButton = ButtonWidget.builder(Text.literal("Advanced"), button -> {
-            if (selectedMapId != -1 && client != null) {
-                client.setScreen(new ChannelSettingsScreen(this, channel, selectedMapId));
-            }
-        }).dimensions(leftPanelX + PANEL_PADDING, bottomButtonY - BUTTON_HEIGHT * 4 - 8, leftPanelWidth - PANEL_PADDING * 2, BUTTON_HEIGHT).build();
-        addDrawableChild(settingsButton);
-        
+
         ButtonWidget globalSettingsButton = ButtonWidget.builder(Text.literal("⚙ Global Settings"), button -> {
             if (client != null) {
                 client.setScreen(new GlobalSettingsScreen(this));
             }
         }).dimensions(leftPanelX + PANEL_PADDING, bottomButtonY - BUTTON_HEIGHT * 3 - 6, leftPanelWidth - PANEL_PADDING * 2, BUTTON_HEIGHT).build();
         addDrawableChild(globalSettingsButton);
-        
+
         protocolButton = ButtonWidget.builder(Text.literal("Protocol: ..."), button -> {
             if (selectedMapId != -1) {
                 cycleProtocol();
@@ -136,7 +137,7 @@ public class MapDecorationsScreen extends Screen {
             }
         }).dimensions(leftPanelX + PANEL_PADDING, bottomButtonY - BUTTON_HEIGHT * 2 - 4, leftPanelWidth - PANEL_PADDING * 2, BUTTON_HEIGHT).build();
         addDrawableChild(protocolButton);
-        
+
         channelTypeButton = ButtonWidget.builder(Text.literal("Type: ..."), button -> {
             if (selectedMapId != -1) {
                 cycleChannelType();
@@ -144,7 +145,7 @@ public class MapDecorationsScreen extends Screen {
             }
         }).dimensions(leftPanelX + PANEL_PADDING, bottomButtonY - BUTTON_HEIGHT - 2, leftPanelWidth - PANEL_PADDING * 2, BUTTON_HEIGHT).build();
         addDrawableChild(channelTypeButton);
-        
+
         renameButton = ButtonWidget.builder(Text.literal("Rename"), button -> {
             if (selectedMapId != -1 && renameField != null) {
                 renameField.setFocused(true);
@@ -302,7 +303,6 @@ public class MapDecorationsScreen extends Screen {
         messagesTabButton.active = currentTab != ViewTab.MESSAGES;
         renameButton.active = selectedMapId != -1;
         protocolButton.active = selectedMapId != -1;
-        settingsButton.active = selectedMapId != -1;
 
         if (selectedMapId != -1) {
             ChannelSettings settings = channel.getSettings(selectedMapId);
@@ -317,6 +317,8 @@ public class MapDecorationsScreen extends Screen {
         if (sortDropdown != null) {
             sortDropdown.render(context, mouseX, mouseY, delta);
         }
+
+        toastManager.render(context, textRenderer, width, height);
     }
 
     @Override
@@ -345,21 +347,59 @@ public class MapDecorationsScreen extends Screen {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (renameField != null && renameField.isFocused()) {
-            if (keyCode == 257 || keyCode == 335) {
+            if (KeyboardConstants.isEnter(keyCode)) {
                 String newName = renameField.getText();
                 if (!newName.isBlank() && selectedMapId != -1) {
                     channel.setUserChannelName(selectedMapId, newName);
                     updateChannelList();
+                    toastManager.success("Channel renamed to \"" + newName + "\"");
                 }
                 renameField.setText("");
                 renameField.setFocused(false);
                 return true;
-            } else if (keyCode == 256) {
+            } else if (keyCode == KeyboardConstants.KEY_ESCAPE) {
                 renameField.setText("");
                 renameField.setFocused(false);
                 return true;
             }
+            return super.keyPressed(keyCode, scanCode, modifiers);
         }
+
+        if (searchField != null && searchField.isFocused()) {
+            if (keyCode == KeyboardConstants.KEY_ESCAPE) {
+                searchField.setText("");
+                searchField.setFocused(false);
+                channelFilter.setSearchText("");
+                updateChannelList();
+                return true;
+            }
+            return super.keyPressed(keyCode, scanCode, modifiers);
+        }
+
+        if (KeyboardConstants.hasControl(modifiers) && keyCode == KeyboardConstants.KEY_F) {
+            if (searchField != null) {
+                searchField.setFocused(true);
+            }
+            return true;
+        }
+
+        if (keyCode == KeyboardConstants.KEY_TAB) {
+            if (KeyboardConstants.hasShift(modifiers)) {
+                currentTab = currentTab == ViewTab.MESSAGES ? ViewTab.RAW : ViewTab.MESSAGES;
+            } else {
+                currentTab = currentTab == ViewTab.RAW ? ViewTab.MESSAGES : ViewTab.RAW;
+            }
+            updateMessageList();
+            return true;
+        }
+
+        if (keyCode == KeyboardConstants.KEY_ESCAPE) {
+            if (client != null) {
+                close();
+            }
+            return true;
+        }
+
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
     
@@ -384,6 +424,7 @@ public class MapDecorationsScreen extends Screen {
     
     private void onChannelSelected(int mapId) {
         selectedMapId = mapId;
+        channel.markAsRead(mapId);
         updateChannelList();
         updateMessageList();
         updateProtocolButtons();
@@ -595,10 +636,20 @@ public class MapDecorationsScreen extends Screen {
                 context.drawText(client.textRenderer, displayName, x + 4, y + 2, textColor, false);
 
                 if (metadata != null) {
+                    int rightOffset = 8;
+
+                    if (metadata.unreadCount() > 0) {
+                        String unreadText = metadata.unreadCount() > 99 ? "99+" : String.valueOf(metadata.unreadCount());
+                        int unreadWidth = client.textRenderer.getWidth(unreadText) + 6;
+                        context.fill(x + entryWidth - unreadWidth - rightOffset, y + 2, x + entryWidth - rightOffset, y + 12, 0xFFCC3333);
+                        context.drawText(client.textRenderer, unreadText, x + entryWidth - unreadWidth - rightOffset + 3, y + 3, 0xFFFFFFFF, false);
+                        rightOffset += unreadWidth + 4;
+                    }
+
                     String countText = String.valueOf(metadata.messageCount());
                     int countWidth = client.textRenderer.getWidth(countText) + 4;
-                    context.fill(x + entryWidth - countWidth - 8, y + 2, x + entryWidth - 8, y + 12, 0x60555555);
-                    context.drawText(client.textRenderer, countText, x + entryWidth - countWidth - 6, y + 3, 0xFFAAAAAA, false);
+                    context.fill(x + entryWidth - countWidth - rightOffset, y + 2, x + entryWidth - rightOffset, y + 12, 0x60555555);
+                    context.drawText(client.textRenderer, countText, x + entryWidth - countWidth - rightOffset + 2, y + 3, 0xFFAAAAAA, false);
 
                     boolean isActive = metadata.lastActivity() != null &&
                         metadata.lastActivity().isAfter(Instant.now().minus(Duration.ofHours(24)));

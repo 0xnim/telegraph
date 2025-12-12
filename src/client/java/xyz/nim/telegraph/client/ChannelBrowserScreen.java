@@ -6,13 +6,17 @@ import net.minecraft.client.gui.widget.AlwaysSelectedEntryListWidget;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
+import xyz.nim.telegraph.client.ui.ConfirmDialog;
 import xyz.nim.telegraph.client.ui.DropdownWidget;
+import xyz.nim.telegraph.client.ui.KeyboardConstants;
+import xyz.nim.telegraph.client.ui.ToastManager;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class ChannelBrowserScreen extends Screen {
@@ -36,6 +40,16 @@ public class ChannelBrowserScreen extends Screen {
 
     private final Map<ChannelCategory, ButtonWidget> categoryButtons = new EnumMap<>(ChannelCategory.class);
     private int selectedMapId = -1;
+
+    private final ToastManager toastManager = new ToastManager();
+    private ConfirmDialog confirmDialog;
+
+    private ButtonWidget openChannelButton;
+    private ButtonWidget archiveButton;
+    private ButtonWidget translationsButton;
+    private DropdownWidget notificationDropdown;
+    private TextFieldWidget tagInputField;
+    private ButtonWidget addTagButton;
 
     public ChannelBrowserScreen(Screen parent, TelegraphChannel channel) {
         super(Text.literal("Channel Browser"));
@@ -127,6 +141,79 @@ public class ChannelBrowserScreen extends Screen {
         channelList.setX(PANEL_MARGIN + PANEL_PADDING);
         addDrawableChild(channelList);
 
+        int rightPanelX = PANEL_MARGIN + leftPanelWidth + PANEL_MARGIN;
+        int rightPanelWidth = width - rightPanelX - PANEL_MARGIN;
+        int settingsY = contentY + contentHeight - PANEL_PADDING - BUTTON_HEIGHT;
+
+        openChannelButton = ButtonWidget.builder(Text.literal("Open Channel"), button -> {
+            if (selectedMapId != -1 && client != null) {
+                client.setScreen(new MapDecorationsScreen(channel, selectedMapId));
+            }
+        }).dimensions(rightPanelX + PANEL_PADDING, settingsY, rightPanelWidth / 2 - PANEL_PADDING - 2, BUTTON_HEIGHT).build();
+        openChannelButton.active = false;
+        addDrawableChild(openChannelButton);
+
+        archiveButton = ButtonWidget.builder(Text.literal("Archive"), button -> {
+            if (selectedMapId != -1) {
+                showArchiveConfirmation();
+            }
+        }).dimensions(rightPanelX + rightPanelWidth / 2 + 2, settingsY, rightPanelWidth / 2 - PANEL_PADDING - 2, BUTTON_HEIGHT).build();
+        archiveButton.active = false;
+        addDrawableChild(archiveButton);
+
+        settingsY -= BUTTON_HEIGHT + 4;
+
+        translationsButton = ButtonWidget.builder(Text.literal("[ ] Translations"), button -> {
+            if (selectedMapId != -1) {
+                ChannelSettings settings = channel.getOrCreateSettings(selectedMapId);
+                settings.setShowTranslations(!settings.isShowTranslations());
+                updateSettingsButtons();
+                toastManager.success("Translations " + (settings.isShowTranslations() ? "enabled" : "disabled"));
+            }
+        }).dimensions(rightPanelX + PANEL_PADDING, settingsY, rightPanelWidth - PANEL_PADDING * 2, BUTTON_HEIGHT).build();
+        translationsButton.active = false;
+        addDrawableChild(translationsButton);
+
+        settingsY -= BUTTON_HEIGHT + 4;
+
+        List<DropdownWidget.DropdownOption> notifOptions = Arrays.stream(ChannelSettings.NotificationLevel.values())
+            .map(level -> new DropdownWidget.DropdownOption(level.name(), level.name().replace("_", " ")))
+            .collect(Collectors.toList());
+        notificationDropdown = new DropdownWidget(client,
+            rightPanelX + PANEL_PADDING,
+            settingsY,
+            rightPanelWidth - PANEL_PADDING * 2, BUTTON_HEIGHT, notifOptions,
+            value -> {
+                if (selectedMapId != -1) {
+                    ChannelSettings settings = channel.getOrCreateSettings(selectedMapId);
+                    settings.setNotificationLevel(ChannelSettings.NotificationLevel.valueOf(value));
+                    toastManager.success("Notifications set to " + value.replace("_", " "));
+                }
+            });
+        notificationDropdown.getButton().active = false;
+        addDrawableChild(notificationDropdown.getButton());
+
+        settingsY -= BUTTON_HEIGHT + 4;
+
+        int tagFieldWidth = rightPanelWidth - PANEL_PADDING * 2 - 50;
+        tagInputField = new TextFieldWidget(textRenderer,
+            rightPanelX + PANEL_PADDING, settingsY,
+            tagFieldWidth, BUTTON_HEIGHT, Text.literal("Tag"));
+        tagInputField.setPlaceholder(Text.literal("Add tag..."));
+        tagInputField.setMaxLength(20);
+        tagInputField.active = false;
+        addDrawableChild(tagInputField);
+
+        addTagButton = ButtonWidget.builder(Text.literal("+"), button -> {
+            if (selectedMapId != -1 && !tagInputField.getText().isBlank()) {
+                channel.addTag(selectedMapId, tagInputField.getText().trim());
+                tagInputField.setText("");
+                toastManager.success("Tag added");
+            }
+        }).dimensions(rightPanelX + PANEL_PADDING + tagFieldWidth + 4, settingsY, 44, BUTTON_HEIGHT).build();
+        addTagButton.active = false;
+        addDrawableChild(addTagButton);
+
         updateCategoryButtons();
         updateChannelList();
     }
@@ -152,6 +239,53 @@ public class ChannelBrowserScreen extends Screen {
                 (entry.getKey() == ChannelCategory.ALL && active.isEmpty());
             entry.getValue().active = !isActive;
         }
+    }
+
+    private void updateSettingsButtons() {
+        boolean hasSelection = selectedMapId != -1;
+
+        openChannelButton.active = hasSelection;
+        archiveButton.active = hasSelection;
+        translationsButton.active = hasSelection;
+        notificationDropdown.getButton().active = hasSelection;
+        tagInputField.active = hasSelection;
+        addTagButton.active = hasSelection;
+
+        if (hasSelection) {
+            ChannelSettings settings = channel.getOrCreateSettings(selectedMapId);
+            boolean archived = settings.isArchived();
+            archiveButton.setMessage(Text.literal(archived ? "Unarchive" : "Archive"));
+
+            boolean showTrans = settings.isShowTranslations();
+            translationsButton.setMessage(Text.literal(showTrans ? "[X] Translations" : "[ ] Translations"));
+
+            notificationDropdown.setSelected(settings.getNotificationLevel().name());
+        }
+    }
+
+    private void showArchiveConfirmation() {
+        if (selectedMapId == -1) return;
+
+        TelegraphChannel.ChannelMetadata metadata = channel.getMetadata(selectedMapId);
+        boolean isArchived = metadata.archived();
+        String action = isArchived ? "unarchive" : "archive";
+
+        confirmDialog = new ConfirmDialog(
+            (isArchived ? "Unarchive" : "Archive") + " Channel",
+            "Are you sure you want to " + action + " \"" + metadata.displayName() + "\"?",
+            () -> {
+                channel.setArchived(selectedMapId, !isArchived);
+                updateSettingsButtons();
+                updateChannelList();
+                toastManager.success("Channel " + (isArchived ? "unarchived" : "archived"));
+            }
+        );
+        confirmDialog.show(width, height, this::addDrawableChild);
+    }
+
+    private void onChannelSelected(int mapId) {
+        selectedMapId = mapId;
+        updateSettingsButtons();
     }
 
     private void updateChannelList() {
@@ -203,6 +337,13 @@ public class ChannelBrowserScreen extends Screen {
         super.render(context, mouseX, mouseY, delta);
 
         sortDropdown.render(context, mouseX, mouseY, delta);
+        notificationDropdown.render(context, mouseX, mouseY, delta);
+
+        toastManager.render(context, textRenderer, width, height);
+
+        if (confirmDialog != null && confirmDialog.isVisible()) {
+            confirmDialog.render(context, textRenderer, mouseX, mouseY);
+        }
     }
 
     private void renderChannelDetails(DrawContext context, int x, int y, int panelWidth, int panelHeight) {
@@ -263,15 +404,49 @@ public class ChannelBrowserScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (confirmDialog != null && confirmDialog.isVisible()) {
+            return confirmDialog.mouseClicked(mouseX, mouseY, button);
+        }
         if (sortDropdown.mouseClicked(mouseX, mouseY, button)) {
+            return true;
+        }
+        if (notificationDropdown.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (confirmDialog != null && confirmDialog.isVisible()) {
+            return confirmDialog.keyPressed(keyCode, scanCode, modifiers);
+        }
+
+        if (keyCode == KeyboardConstants.KEY_ESCAPE) {
+            if (!searchField.getText().isEmpty()) {
+                searchField.setText("");
+                return true;
+            }
+            if (client != null) {
+                client.setScreen(parent);
+            }
+            return true;
+        }
+
+        if (KeyboardConstants.hasControl(modifiers) && keyCode == KeyboardConstants.KEY_F) {
+            searchField.setFocused(true);
+            return true;
+        }
+
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         if (sortDropdown.mouseScrolled(mouseX, mouseY, verticalAmount)) {
+            return true;
+        }
+        if (notificationDropdown.mouseScrolled(mouseX, mouseY, verticalAmount)) {
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
@@ -348,7 +523,7 @@ public class ChannelBrowserScreen extends Screen {
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            selectedMapId = metadata.mapId();
+            onChannelSelected(metadata.mapId());
             return true;
         }
 
