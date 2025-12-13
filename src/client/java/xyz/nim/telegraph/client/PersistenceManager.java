@@ -6,6 +6,9 @@ import xyz.nim.telegraph.client.carnite.CarniteVocabulary;
 import xyz.nim.telegraph.client.protocol.CarniteProtocol;
 import xyz.nim.telegraph.client.protocol.CommunicationProtocol;
 import xyz.nim.telegraph.client.protocol.MapTelegraphProtocol;
+import xyz.nim.telegraph.client.protocol.transport.NoneTransport;
+import xyz.nim.telegraph.client.protocol.transport.TTPTransport;
+import xyz.nim.telegraph.client.protocol.transport.TransportProtocol;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -62,6 +65,7 @@ public class PersistenceManager {
                 settingData.put("notificationLevel", s.getNotificationLevel().name());
                 settingData.put("protocolName", s.getProtocol().getName());
                 settingData.put("channelType", s.getChannelType());
+                settingData.put("transportProtocolName", s.getTransportProtocol().getName());
 
                 serialized.put(entry.getKey(), settingData);
             }
@@ -138,6 +142,10 @@ public class PersistenceManager {
                     }
                     if (settingData.has("channelType") && !settingData.get("channelType").isJsonNull()) {
                         settings.setChannelType(settingData.get("channelType").getAsString());
+                    }
+                    if (settingData.has("transportProtocolName") && !settingData.get("transportProtocolName").isJsonNull()) {
+                        String transportName = settingData.get("transportProtocolName").getAsString();
+                        settings.setTransportProtocol(createTransportProtocolByName(transportName));
                     }
                 }
             }
@@ -373,5 +381,12 @@ public class PersistenceManager {
             return new CarniteProtocol();
         }
         return new MapTelegraphProtocol();
+    }
+
+    private TransportProtocol createTransportProtocolByName(String name) {
+        if (TTPTransport.NAME.equals(name) || "PTP".equals(name)) {
+            return new TTPTransport();
+        }
+        return new NoneTransport();
     }
 }

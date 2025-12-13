@@ -12,6 +12,10 @@ import xyz.nim.telegraph.client.ui.TelegraphTheme;
 import xyz.nim.telegraph.client.ui.components.Buttons;
 import xyz.nim.telegraph.client.ui.components.TelegraphListWidget;
 import xyz.nim.telegraph.client.ui.components.TextFields;
+import xyz.nim.telegraph.client.protocol.transport.DecodeResult;
+import xyz.nim.telegraph.client.protocol.transport.NoneTransport;
+import xyz.nim.telegraph.client.protocol.transport.TTPTransport;
+import xyz.nim.telegraph.client.protocol.transport.TransportEnvelope;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -247,10 +251,34 @@ public class MapDecorationsScreen extends TelegraphScreen {
         updateMessageList();
     }
 
+    private void cycleTransportProtocol() {
+        ChannelSettings settings = channel.getOrCreateSettings(selectedMapId);
+        if (settings.getTransportProtocol() instanceof TTPTransport) {
+            settings.setTransportProtocol(new NoneTransport());
+        } else {
+            settings.setTransportProtocol(new TTPTransport());
+        }
+        if (settingsDialog != null) {
+            settingsDialog.updateRows();
+        }
+        updateMessageList();
+    }
+
     private void showSettingsDialog() {
         if (selectedMapId == -1) return;
 
         List<SettingsDialog.SettingRow> rows = new ArrayList<>();
+
+        // Transport protocol row
+        rows.add(new SettingsDialog.SettingRow(
+            "Transport:",
+            () -> {
+                ChannelSettings settings = channel.getSettings(selectedMapId);
+                if (settings == null) return "...";
+                return settings.getTransportProtocol().getName();
+            },
+            this::cycleTransportProtocol
+        ));
 
         // Protocol row
         rows.add(new SettingsDialog.SettingRow(
@@ -527,27 +555,76 @@ public class MapDecorationsScreen extends TelegraphScreen {
             } else {
                 ChannelSettings settings = channel.getSettings(selectedMapId);
                 boolean isCarnite = settings != null && settings.getProtocol() instanceof xyz.nim.telegraph.client.protocol.CarniteProtocol;
+                boolean isTTP = settings != null && settings.getTransportProtocol() instanceof TTPTransport;
+                TTPTransport ttpTransport = isTTP ? (TTPTransport) settings.getTransportProtocol() : null;
 
                 for (FormattedMapMessage msg : formattedMessages) {
                     String colorCode = getBannerColorFormatting(msg.bannerType);
                     String displayText = colorCode + msg.name;
 
                     String tooltip = null;
-                    String carniteTranslation = null;
+                    String translation = null;
 
-                    if (isCarnite) {
+                    if (isTTP && ttpTransport != null) {
+                        DecodeResult decoded = ttpTransport.decode(msg.name);
+                        TransportEnvelope env = decoded.envelope();
+
+                        if (env.sourceId() != null) {
+                            // Build TTP-formatted display
+                            StringBuilder ttpDisplay = new StringBuilder();
+                            ttpDisplay.append(colorCode);
+
+                            // Message type prefix
+                            if (decoded.isAck()) {
+                                ttpDisplay.append("\u00A7a[OK] ");
+                            } else if (decoded.isQuery()) {
+                                ttpDisplay.append("\u00A7e[NEED] ");
+                            } else if (decoded.isStatus()) {
+                                ttpDisplay.append("\u00A7b[STATUS] ");
+                            }
+
+                            // Routing info
+                            ttpDisplay.append("\u00A77T").append(env.sourceId());
+                            ttpDisplay.append("\u2192");
+                            ttpDisplay.append(env.isBroadcast() ? "ALL" : "T" + env.destinationId());
+                            ttpDisplay.append(" ");
+
+                            // Addressee if present
+                            if (env.addressee() != null) {
+                                ttpDisplay.append("\u00A7f@").append(env.addressee()).append(": ");
+                            }
+
+                            // Payload
+                            ttpDisplay.append("\u00A7f").append(decoded.payload());
+
+                            displayText = ttpDisplay.toString();
+
+                            // Build tooltip
+                            StringBuilder tipBuilder = new StringBuilder();
+                            tipBuilder.append("TTP Message ID: ").append(env.messageId());
+                            if (env.isMultipart()) {
+                                tipBuilder.append(" (Part ").append(env.partNumber()).append("/").append(env.totalParts()).append(")");
+                            }
+                            tipBuilder.append("\nFrom: Tower ").append(env.sourceId());
+                            tipBuilder.append("\nTo: ").append(env.isBroadcast() ? "All Towers" : "Tower " + env.destinationId());
+                            if (env.addressee() != null) {
+                                tipBuilder.append("\nRecipient: ").append(env.addressee());
+                            }
+                            tooltip = tipBuilder.toString();
+                        }
+                    } else if (isCarnite) {
                         String tense = xyz.nim.telegraph.client.carnite.CarniteParser.getTenseFromColor(msg.bannerType);
                         String expanded = xyz.nim.telegraph.client.carnite.CarniteVocabulary.formatWithExpansion(msg.name);
                         tooltip = tense + "\n" + expanded;
 
                         if (settings.isShowTranslations()) {
-                            xyz.nim.telegraph.client.carnite.CarniteTranslator.TranslationResult translation =
+                            xyz.nim.telegraph.client.carnite.CarniteTranslator.TranslationResult carniteResult =
                                 xyz.nim.telegraph.client.carnite.CarniteTranslator.translate(msg.name, msg.bannerType);
-                            carniteTranslation = translation.translation();
+                            translation = carniteResult.translation();
                         }
                     }
 
-                    messageList.addEntryToList(new MessageEntry(client, displayText, TelegraphTheme.TEXT_PRIMARY, tooltip, carniteTranslation));
+                    messageList.addEntryToList(new MessageEntry(client, displayText, TelegraphTheme.TEXT_PRIMARY, tooltip, translation));
                 }
             }
         }
