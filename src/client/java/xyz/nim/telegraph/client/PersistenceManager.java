@@ -3,6 +3,9 @@ package xyz.nim.telegraph.client;
 import com.google.gson.*;
 import net.minecraft.client.MinecraftClient;
 import xyz.nim.telegraph.client.carnite.CarniteVocabulary;
+import xyz.nim.telegraph.client.protocol.CarniteProtocol;
+import xyz.nim.telegraph.client.protocol.CommunicationProtocol;
+import xyz.nim.telegraph.client.protocol.MapTelegraphProtocol;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -57,7 +60,9 @@ public class PersistenceManager {
                 settingData.put("showTranslations", s.isShowTranslations());
                 settingData.put("tags", s.getTags());
                 settingData.put("notificationLevel", s.getNotificationLevel().name());
-                
+                settingData.put("protocolName", s.getProtocol().getName());
+                settingData.put("channelType", s.getChannelType());
+
                 serialized.put(entry.getKey(), settingData);
             }
             
@@ -126,6 +131,13 @@ public class PersistenceManager {
                         settings.setNotificationLevel(
                             ChannelSettings.NotificationLevel.valueOf(settingData.get("notificationLevel").getAsString())
                         );
+                    }
+                    if (settingData.has("protocolName") && !settingData.get("protocolName").isJsonNull()) {
+                        String protocolName = settingData.get("protocolName").getAsString();
+                        settings.setProtocol(createProtocolByName(protocolName));
+                    }
+                    if (settingData.has("channelType") && !settingData.get("channelType").isJsonNull()) {
+                        settings.setChannelType(settingData.get("channelType").getAsString());
                     }
                 }
             }
@@ -354,5 +366,12 @@ public class PersistenceManager {
         } catch (IOException e) {
             System.err.println("Failed to load civilizations: " + e.getMessage());
         }
+    }
+
+    private CommunicationProtocol createProtocolByName(String name) {
+        if ("Carnite".equals(name)) {
+            return new CarniteProtocol();
+        }
+        return new MapTelegraphProtocol();
     }
 }
