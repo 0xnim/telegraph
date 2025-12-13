@@ -2,30 +2,25 @@ package xyz.nim.telegraph.client;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.AlwaysSelectedEntryListWidget;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
-import xyz.nim.telegraph.client.ui.ConfirmDialog;
 import xyz.nim.telegraph.client.ui.DropdownWidget;
 import xyz.nim.telegraph.client.ui.KeyboardConstants;
-import xyz.nim.telegraph.client.ui.ToastManager;
+import xyz.nim.telegraph.client.ui.TelegraphScreen;
+import xyz.nim.telegraph.client.ui.TelegraphTheme;
+import xyz.nim.telegraph.client.ui.components.Buttons;
+import xyz.nim.telegraph.client.ui.components.TelegraphListWidget;
+import xyz.nim.telegraph.client.ui.components.TextFields;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-public class ChannelBrowserScreen extends Screen {
-    private static final int PANEL_MARGIN = 10;
-    private static final int PANEL_PADDING = 8;
-    private static final int BUTTON_HEIGHT = 20;
-    private static final int HEADER_HEIGHT = 24;
-    private static final int PANEL_COLOR = 0xA0000000;
-    private static final int PANEL_BORDER_COLOR = 0xFFC0C0C0;
+public class ChannelBrowserScreen extends TelegraphScreen {
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("MMM d, HH:mm");
 
     private final Screen parent;
@@ -40,9 +35,6 @@ public class ChannelBrowserScreen extends Screen {
 
     private final Map<ChannelCategory, ButtonWidget> categoryButtons = new EnumMap<>(ChannelCategory.class);
     private int selectedMapId = -1;
-
-    private final ToastManager toastManager = new ToastManager();
-    private ConfirmDialog confirmDialog;
 
     private ButtonWidget openChannelButton;
     private ButtonWidget archiveButton;
@@ -62,20 +54,17 @@ public class ChannelBrowserScreen extends Screen {
     protected void init() {
         super.init();
 
-        int topBarY = PANEL_MARGIN;
-        int topBarHeight = BUTTON_HEIGHT + PANEL_PADDING * 2;
+        int topBarY = layout.margin;
+        int topBarHeight = layout.buttonHeight + layout.padding * 2;
 
-        backButton = ButtonWidget.builder(Text.literal("<- Back"), button -> {
-            if (client != null) client.setScreen(parent);
-        }).dimensions(PANEL_MARGIN + PANEL_PADDING, topBarY + PANEL_PADDING, 60, BUTTON_HEIGHT).build();
+        backButton = Buttons.back(layout.margin + layout.padding, topBarY + layout.padding, layout, button -> close());
         addDrawableChild(backButton);
 
-        int searchWidth = Math.min(200, width / 4);
-        searchField = new TextFieldWidget(textRenderer,
-            PANEL_MARGIN + PANEL_PADDING + 70, topBarY + PANEL_PADDING,
-            searchWidth, BUTTON_HEIGHT, Text.literal("Search"));
+        int searchWidth = Math.min(200, layout.contentWidth() / 4);
+        searchField = TextFields.search(textRenderer,
+            layout.margin + layout.padding + layout.buttonWidth + layout.spacing, topBarY + layout.padding,
+            searchWidth, layout);
         searchField.setPlaceholder(Text.literal("Search channels or tags..."));
-        searchField.setMaxLength(64);
         searchField.setChangedListener(text -> {
             filter.setSearchText(text);
             updateChannelList();
@@ -86,15 +75,16 @@ public class ChannelBrowserScreen extends Screen {
             .map(opt -> new DropdownWidget.DropdownOption(opt.name(), opt.getLabel()))
             .collect(Collectors.toList());
         sortDropdown = new DropdownWidget(client,
-            PANEL_MARGIN + PANEL_PADDING + 80 + searchWidth,
-            topBarY + PANEL_PADDING,
-            140, BUTTON_HEIGHT, sortOptions,
+            layout.margin + layout.padding + layout.buttonWidth + searchWidth + layout.spacing * 2,
+            topBarY + layout.padding,
+            140, layout.buttonHeight, sortOptions,
             value -> {
                 filter.setSortOption(ChannelSortOption.valueOf(value));
                 updateChannelList();
             });
         addDrawableChild(sortDropdown.getButton());
 
+        int archivedBtnWidth = Math.min(100, layout.contentWidth() / 6);
         showArchivedButton = ButtonWidget.builder(
             Text.literal(filter.isIncludeArchived() ? "[X] Archived" : "[ ] Archived"),
             button -> {
@@ -102,87 +92,93 @@ public class ChannelBrowserScreen extends Screen {
                 button.setMessage(Text.literal(filter.isIncludeArchived() ? "[X] Archived" : "[ ] Archived"));
                 updateChannelList();
             }
-        ).dimensions(width - PANEL_MARGIN - PANEL_PADDING - 90, topBarY + PANEL_PADDING, 90, BUTTON_HEIGHT).build();
+        ).dimensions(width - layout.margin - layout.padding - archivedBtnWidth, topBarY + layout.padding,
+            archivedBtnWidth, layout.buttonHeight).build();
         addDrawableChild(showArchivedButton);
 
-        int filterBarY = topBarY + topBarHeight + 5;
-        int filterBarHeight = BUTTON_HEIGHT + PANEL_PADDING * 2;
+        int filterBarY = topBarY + topBarHeight + layout.spacing;
+        int filterBarHeight = layout.buttonHeight + layout.padding * 2;
 
-        int filterX = PANEL_MARGIN + PANEL_PADDING;
-        int buttonWidth = 70;
+        int filterX = layout.margin + layout.padding;
         int buttonSpacing = 4;
+        int smallBtnWidth = Math.max(40, layout.contentWidth() / 16);
+        int medBtnWidth = Math.max(55, layout.contentWidth() / 12);
 
-        addCategoryButton(ChannelCategory.ALL, filterX, filterBarY + PANEL_PADDING, 40);
-        filterX += 40 + buttonSpacing;
-        addCategoryButton(ChannelCategory.CARNITE, filterX, filterBarY + PANEL_PADDING, buttonWidth);
-        filterX += buttonWidth + buttonSpacing;
-        addCategoryButton(ChannelCategory.TELEGRAPH, filterX, filterBarY + PANEL_PADDING, buttonWidth);
-        filterX += buttonWidth + 15;
-        addCategoryButton(ChannelCategory.ACTIVE, filterX, filterBarY + PANEL_PADDING, 55);
-        filterX += 55 + buttonSpacing;
-        addCategoryButton(ChannelCategory.INACTIVE, filterX, filterBarY + PANEL_PADDING, 60);
-        filterX += 60 + buttonSpacing;
-        addCategoryButton(ChannelCategory.NEW, filterX, filterBarY + PANEL_PADDING, 40);
+        addCategoryButton(ChannelCategory.ALL, filterX, filterBarY + layout.padding, smallBtnWidth);
+        filterX += smallBtnWidth + buttonSpacing;
+        addCategoryButton(ChannelCategory.CARNITE, filterX, filterBarY + layout.padding, medBtnWidth + 15);
+        filterX += medBtnWidth + 15 + buttonSpacing;
+        addCategoryButton(ChannelCategory.TELEGRAPH, filterX, filterBarY + layout.padding, medBtnWidth + 15);
+        filterX += medBtnWidth + 15 + layout.spacing * 2;
+        addCategoryButton(ChannelCategory.ACTIVE, filterX, filterBarY + layout.padding, medBtnWidth);
+        filterX += medBtnWidth + buttonSpacing;
+        addCategoryButton(ChannelCategory.INACTIVE, filterX, filterBarY + layout.padding, medBtnWidth + 5);
+        filterX += medBtnWidth + 5 + buttonSpacing;
+        addCategoryButton(ChannelCategory.NEW, filterX, filterBarY + layout.padding, smallBtnWidth);
 
-        int contentY = filterBarY + filterBarHeight + 5;
-        int leftPanelWidth = (int) (width * 0.55);
-        int contentHeight = height - contentY - PANEL_MARGIN;
+        int contentY = filterBarY + filterBarHeight + layout.spacing;
+        var splitLayout = layout.split(0.55f);
+        int contentHeight = height - contentY - layout.margin;
 
-        int listY = contentY + PANEL_PADDING + HEADER_HEIGHT;
-        int listHeight = contentHeight - PANEL_PADDING * 2 - HEADER_HEIGHT;
+        int listY = contentY + layout.padding + layout.headerHeight;
+        int listHeight = contentHeight - layout.padding * 2 - layout.headerHeight;
 
         channelList = new ChannelBrowserListWidget(
             client,
-            leftPanelWidth - PANEL_PADDING * 2,
+            splitLayout.leftWidth() - layout.padding * 2,
             listHeight,
             listY,
             50
         );
-        channelList.setX(PANEL_MARGIN + PANEL_PADDING);
+        channelList.setX(layout.margin + layout.padding);
         addDrawableChild(channelList);
 
-        int rightPanelX = PANEL_MARGIN + leftPanelWidth + PANEL_MARGIN;
-        int rightPanelWidth = width - rightPanelX - PANEL_MARGIN;
-        int settingsY = contentY + contentHeight - PANEL_PADDING - BUTTON_HEIGHT;
+        int rightPanelX = splitLayout.rightX();
+        int rightPanelWidth = splitLayout.rightWidth();
+        int settingsY = contentY + contentHeight - layout.padding - layout.buttonHeight;
 
-        openChannelButton = ButtonWidget.builder(Text.literal("Open Channel"), button -> {
-            if (selectedMapId != -1 && client != null) {
-                client.setScreen(new MapDecorationsScreen(channel, selectedMapId));
-            }
-        }).dimensions(rightPanelX + PANEL_PADDING, settingsY, rightPanelWidth / 2 - PANEL_PADDING - 2, BUTTON_HEIGHT).build();
+        int halfButtonWidth = rightPanelWidth / 2 - layout.padding - 2;
+        openChannelButton = Buttons.create(Text.literal("Open Channel"),
+            rightPanelX + layout.padding, settingsY, halfButtonWidth, layout, button -> {
+                if (selectedMapId != -1 && client != null) {
+                    client.setScreen(new MapDecorationsScreen(channel, selectedMapId));
+                }
+            });
         openChannelButton.active = false;
         addDrawableChild(openChannelButton);
 
-        archiveButton = ButtonWidget.builder(Text.literal("Archive"), button -> {
-            if (selectedMapId != -1) {
-                showArchiveConfirmation();
-            }
-        }).dimensions(rightPanelX + rightPanelWidth / 2 + 2, settingsY, rightPanelWidth / 2 - PANEL_PADDING - 2, BUTTON_HEIGHT).build();
+        archiveButton = Buttons.create(Text.literal("Archive"),
+            rightPanelX + rightPanelWidth / 2 + 2, settingsY, halfButtonWidth, layout, button -> {
+                if (selectedMapId != -1) {
+                    showArchiveConfirmation();
+                }
+            });
         archiveButton.active = false;
         addDrawableChild(archiveButton);
 
-        settingsY -= BUTTON_HEIGHT + 4;
+        settingsY -= layout.buttonHeight + 4;
 
-        translationsButton = ButtonWidget.builder(Text.literal("[ ] Translations"), button -> {
-            if (selectedMapId != -1) {
-                ChannelSettings settings = channel.getOrCreateSettings(selectedMapId);
-                settings.setShowTranslations(!settings.isShowTranslations());
-                updateSettingsButtons();
-                toastManager.success("Translations " + (settings.isShowTranslations() ? "enabled" : "disabled"));
-            }
-        }).dimensions(rightPanelX + PANEL_PADDING, settingsY, rightPanelWidth - PANEL_PADDING * 2, BUTTON_HEIGHT).build();
+        translationsButton = Buttons.create(Text.literal("[ ] Translations"),
+            rightPanelX + layout.padding, settingsY, rightPanelWidth - layout.padding * 2, layout, button -> {
+                if (selectedMapId != -1) {
+                    ChannelSettings settings = channel.getOrCreateSettings(selectedMapId);
+                    settings.setShowTranslations(!settings.isShowTranslations());
+                    updateSettingsButtons();
+                    toastManager.success("Translations " + (settings.isShowTranslations() ? "enabled" : "disabled"));
+                }
+            });
         translationsButton.active = false;
         addDrawableChild(translationsButton);
 
-        settingsY -= BUTTON_HEIGHT + 4;
+        settingsY -= layout.buttonHeight + 4;
 
         List<DropdownWidget.DropdownOption> notifOptions = Arrays.stream(ChannelSettings.NotificationLevel.values())
             .map(level -> new DropdownWidget.DropdownOption(level.name(), level.name().replace("_", " ")))
             .collect(Collectors.toList());
         notificationDropdown = new DropdownWidget(client,
-            rightPanelX + PANEL_PADDING,
+            rightPanelX + layout.padding,
             settingsY,
-            rightPanelWidth - PANEL_PADDING * 2, BUTTON_HEIGHT, notifOptions,
+            rightPanelWidth - layout.padding * 2, layout.buttonHeight, notifOptions,
             value -> {
                 if (selectedMapId != -1) {
                     ChannelSettings settings = channel.getOrCreateSettings(selectedMapId);
@@ -193,24 +189,23 @@ public class ChannelBrowserScreen extends Screen {
         notificationDropdown.getButton().active = false;
         addDrawableChild(notificationDropdown.getButton());
 
-        settingsY -= BUTTON_HEIGHT + 4;
+        settingsY -= layout.buttonHeight + 4;
 
-        int tagFieldWidth = rightPanelWidth - PANEL_PADDING * 2 - 50;
-        tagInputField = new TextFieldWidget(textRenderer,
-            rightPanelX + PANEL_PADDING, settingsY,
-            tagFieldWidth, BUTTON_HEIGHT, Text.literal("Tag"));
-        tagInputField.setPlaceholder(Text.literal("Add tag..."));
-        tagInputField.setMaxLength(20);
+        int tagFieldWidth = rightPanelWidth - layout.padding * 2 - 50;
+        tagInputField = TextFields.input(textRenderer,
+            rightPanelX + layout.padding, settingsY,
+            tagFieldWidth, layout, "Add tag...", 20);
         tagInputField.active = false;
         addDrawableChild(tagInputField);
 
-        addTagButton = ButtonWidget.builder(Text.literal("+"), button -> {
-            if (selectedMapId != -1 && !tagInputField.getText().isBlank()) {
-                channel.addTag(selectedMapId, tagInputField.getText().trim());
-                tagInputField.setText("");
-                toastManager.success("Tag added");
-            }
-        }).dimensions(rightPanelX + PANEL_PADDING + tagFieldWidth + 4, settingsY, 44, BUTTON_HEIGHT).build();
+        addTagButton = Buttons.create(Text.literal("+"),
+            rightPanelX + layout.padding + tagFieldWidth + 4, settingsY, 44, layout, button -> {
+                if (selectedMapId != -1 && !tagInputField.getText().isBlank()) {
+                    channel.addTag(selectedMapId, tagInputField.getText().trim());
+                    tagInputField.setText("");
+                    toastManager.success("Tag added");
+                }
+            });
         addTagButton.active = false;
         addDrawableChild(addTagButton);
 
@@ -227,7 +222,7 @@ public class ChannelBrowserScreen extends Screen {
             }
             updateCategoryButtons();
             updateChannelList();
-        }).dimensions(x, y, btnWidth, BUTTON_HEIGHT).build();
+        }).dimensions(x, y, btnWidth, layout.buttonHeight).build();
         categoryButtons.put(category, button);
         addDrawableChild(button);
     }
@@ -270,17 +265,14 @@ public class ChannelBrowserScreen extends Screen {
         boolean isArchived = metadata.archived();
         String action = isArchived ? "unarchive" : "archive";
 
-        confirmDialog = new ConfirmDialog(
-            (isArchived ? "Unarchive" : "Archive") + " Channel",
+        confirm((isArchived ? "Unarchive" : "Archive") + " Channel",
             "Are you sure you want to " + action + " \"" + metadata.displayName() + "\"?",
             () -> {
                 channel.setArchived(selectedMapId, !isArchived);
                 updateSettingsButtons();
                 updateChannelList();
                 toastManager.success("Channel " + (isArchived ? "unarchived" : "archived"));
-            }
-        );
-        confirmDialog.show(width, height, this::addDrawableChild);
+            });
     }
 
     private void onChannelSelected(int mapId) {
@@ -296,98 +288,104 @@ public class ChannelBrowserScreen extends Screen {
 
         for (int mapId : filteredIds) {
             TelegraphChannel.ChannelMetadata metadata = channel.getMetadata(mapId);
-            channelList.addChannelEntry(new ChannelBrowserEntry(metadata));
+            channelList.addEntryToList(new ChannelBrowserEntry(metadata));
         }
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        int topBarY = PANEL_MARGIN;
-        int topBarHeight = BUTTON_HEIGHT + PANEL_PADDING * 2;
-        context.fill(PANEL_MARGIN, topBarY, width - PANEL_MARGIN, topBarY + topBarHeight, PANEL_COLOR);
-        context.drawBorder(PANEL_MARGIN, topBarY, width - PANEL_MARGIN * 2, topBarHeight, PANEL_BORDER_COLOR);
+    protected void renderPanels(DrawContext context, int mouseX, int mouseY, float delta) {
+        int topBarY = layout.margin;
+        int topBarHeight = layout.buttonHeight + layout.padding * 2;
+        drawPanel(context, layout.margin, topBarY, layout.contentWidth(), topBarHeight);
 
-        int filterBarY = topBarY + topBarHeight + 5;
-        int filterBarHeight = BUTTON_HEIGHT + PANEL_PADDING * 2;
-        context.fill(PANEL_MARGIN, filterBarY, width - PANEL_MARGIN, filterBarY + filterBarHeight, PANEL_COLOR);
-        context.drawBorder(PANEL_MARGIN, filterBarY, width - PANEL_MARGIN * 2, filterBarHeight, PANEL_BORDER_COLOR);
+        int filterBarY = topBarY + topBarHeight + layout.spacing;
+        int filterBarHeight = layout.buttonHeight + layout.padding * 2;
+        drawPanel(context, layout.margin, filterBarY, layout.contentWidth(), filterBarHeight);
 
-        int contentY = filterBarY + filterBarHeight + 5;
-        int leftPanelWidth = (int) (width * 0.55);
-        int contentHeight = height - contentY - PANEL_MARGIN;
+        int contentY = filterBarY + filterBarHeight + layout.spacing;
+        var splitLayout = layout.split(0.55f);
+        int contentHeight = height - contentY - layout.margin;
 
-        context.fill(PANEL_MARGIN, contentY, PANEL_MARGIN + leftPanelWidth, contentY + contentHeight, PANEL_COLOR);
-        context.drawBorder(PANEL_MARGIN, contentY, leftPanelWidth, contentHeight, PANEL_BORDER_COLOR);
+        drawPanel(context, layout.margin, contentY, splitLayout.leftWidth(), contentHeight);
+        context.fill(layout.margin + 1, contentY + 1, layout.margin + splitLayout.leftWidth() - 1,
+            contentY + layout.headerHeight, TelegraphTheme.HEADER_BG);
         context.drawText(textRenderer, "Channels (" + channelList.children().size() + ")",
-            PANEL_MARGIN + PANEL_PADDING, contentY + PANEL_PADDING + 4, 0xFFFFFFFF, false);
+            layout.margin + layout.padding, contentY + layout.padding, TelegraphTheme.TEXT_PRIMARY, false);
 
-        int rightPanelX = PANEL_MARGIN + leftPanelWidth + PANEL_MARGIN;
-        int rightPanelWidth = width - rightPanelX - PANEL_MARGIN;
-        context.fill(rightPanelX, contentY, rightPanelX + rightPanelWidth, contentY + contentHeight, PANEL_COLOR);
-        context.drawBorder(rightPanelX, contentY, rightPanelWidth, contentHeight, PANEL_BORDER_COLOR);
-        context.drawText(textRenderer, "Channel Details", rightPanelX + PANEL_PADDING, contentY + PANEL_PADDING + 4, 0xFFFFFFFF, false);
+        int rightPanelX = splitLayout.rightX();
+        int rightPanelWidth = splitLayout.rightWidth();
+        drawPanel(context, rightPanelX, contentY, rightPanelWidth, contentHeight);
+        context.fill(rightPanelX + 1, contentY + 1, rightPanelX + rightPanelWidth - 1,
+            contentY + layout.headerHeight, TelegraphTheme.HEADER_BG);
+        context.drawText(textRenderer, "Channel Details",
+            rightPanelX + layout.padding, contentY + layout.padding, TelegraphTheme.TEXT_PRIMARY, false);
+    }
+
+    @Override
+    protected void renderOverlays(DrawContext context, int mouseX, int mouseY, float delta) {
+        int topBarY = layout.margin;
+        int topBarHeight = layout.buttonHeight + layout.padding * 2;
+        int filterBarY = topBarY + topBarHeight + layout.spacing;
+        int filterBarHeight = layout.buttonHeight + layout.padding * 2;
+        int contentY = filterBarY + filterBarHeight + layout.spacing;
+        var splitLayout = layout.split(0.55f);
+        int contentHeight = height - contentY - layout.margin;
+        int rightPanelX = splitLayout.rightX();
+        int rightPanelWidth = splitLayout.rightWidth();
 
         if (selectedMapId != -1) {
             renderChannelDetails(context, rightPanelX, contentY, rightPanelWidth, contentHeight);
         } else {
             context.drawCenteredTextWithShadow(textRenderer, "Select a channel to view details",
-                rightPanelX + rightPanelWidth / 2, contentY + contentHeight / 2, 0xFF888888);
+                rightPanelX + rightPanelWidth / 2, contentY + contentHeight / 2, TelegraphTheme.TEXT_MUTED);
         }
-
-        super.render(context, mouseX, mouseY, delta);
 
         sortDropdown.render(context, mouseX, mouseY, delta);
         notificationDropdown.render(context, mouseX, mouseY, delta);
-
-        toastManager.render(context, textRenderer, width, height);
-
-        if (confirmDialog != null && confirmDialog.isVisible()) {
-            confirmDialog.render(context, textRenderer, mouseX, mouseY);
-        }
     }
 
     private void renderChannelDetails(DrawContext context, int x, int y, int panelWidth, int panelHeight) {
         TelegraphChannel.ChannelMetadata metadata = channel.getMetadata(selectedMapId);
         if (metadata == null) return;
 
-        int contentX = x + PANEL_PADDING;
-        int contentY = y + HEADER_HEIGHT + PANEL_PADDING;
+        int contentX = x + layout.padding;
+        int contentY = y + layout.headerHeight + layout.padding;
 
-        context.drawText(textRenderer, "Name: " + metadata.displayName(), contentX, contentY, 0xFFFFFF00, false);
+        context.drawText(textRenderer, "Name: " + metadata.displayName(), contentX, contentY, TelegraphTheme.SELECTED, false);
         contentY += 14;
 
-        context.drawText(textRenderer, "Map ID: " + metadata.mapId(), contentX, contentY, 0xFFAAAAAA, false);
+        context.drawText(textRenderer, "Map ID: " + metadata.mapId(), contentX, contentY, TelegraphTheme.TEXT_SECONDARY, false);
         contentY += 12;
 
         String protocolColor = metadata.protocolName().equals("Carnite") ? "§6" : "§b";
-        context.drawText(textRenderer, "Protocol: " + protocolColor + metadata.protocolName(), contentX, contentY, 0xFFFFFFFF, false);
+        context.drawText(textRenderer, "Protocol: " + protocolColor + metadata.protocolName(), contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
         contentY += 12;
 
-        context.drawText(textRenderer, "Messages: " + metadata.messageCount(), contentX, contentY, 0xFFAAAAAA, false);
+        context.drawText(textRenderer, "Messages: " + metadata.messageCount(), contentX, contentY, TelegraphTheme.TEXT_SECONDARY, false);
         contentY += 12;
 
         if (metadata.lastActivity() != null) {
             String timeStr = metadata.lastActivity().atZone(ZoneId.systemDefault()).format(TIME_FORMATTER);
             String timeAgo = getTimeAgo(metadata.lastActivity());
-            context.drawText(textRenderer, "Last Active: " + timeStr + " (" + timeAgo + ")", contentX, contentY, 0xFFAAAAAA, false);
+            context.drawText(textRenderer, "Last Active: " + timeStr + " (" + timeAgo + ")", contentX, contentY, TelegraphTheme.TEXT_SECONDARY, false);
         } else {
-            context.drawText(textRenderer, "Last Active: Never", contentX, contentY, 0xFFAAAAAA, false);
+            context.drawText(textRenderer, "Last Active: Never", contentX, contentY, TelegraphTheme.TEXT_SECONDARY, false);
         }
         contentY += 12;
 
         String statusText = metadata.archived() ? "§cArchived" : "§aActive";
-        context.drawText(textRenderer, "Status: " + statusText, contentX, contentY, 0xFFFFFFFF, false);
+        context.drawText(textRenderer, "Status: " + statusText, contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
         contentY += 12;
 
         context.drawText(textRenderer, "Notifications: " + metadata.notificationLevel().name(),
-            contentX, contentY, 0xFFAAAAAA, false);
+            contentX, contentY, TelegraphTheme.TEXT_SECONDARY, false);
         contentY += 14;
 
         if (!metadata.tags().isEmpty()) {
-            context.drawText(textRenderer, "Tags:", contentX, contentY, 0xFFAAAAAA, false);
+            context.drawText(textRenderer, "Tags:", contentX, contentY, TelegraphTheme.TEXT_SECONDARY, false);
             contentY += 12;
             for (String tag : metadata.tags()) {
-                context.drawText(textRenderer, "  - " + tag, contentX, contentY, 0xFF888888, false);
+                context.drawText(textRenderer, "  - " + tag, contentX, contentY, TelegraphTheme.TEXT_MUTED, false);
                 contentY += 10;
             }
         }
@@ -404,9 +402,6 @@ public class ChannelBrowserScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (confirmDialog != null && confirmDialog.isVisible()) {
-            return confirmDialog.mouseClicked(mouseX, mouseY, button);
-        }
         if (sortDropdown.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
@@ -418,19 +413,11 @@ public class ChannelBrowserScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (confirmDialog != null && confirmDialog.isVisible()) {
-            return confirmDialog.keyPressed(keyCode, scanCode, modifiers);
-        }
-
         if (keyCode == KeyboardConstants.KEY_ESCAPE) {
             if (!searchField.getText().isEmpty()) {
                 searchField.setText("");
                 return true;
             }
-            if (client != null) {
-                client.setScreen(parent);
-            }
-            return true;
         }
 
         if (KeyboardConstants.hasControl(modifiers) && keyCode == KeyboardConstants.KEY_F) {
@@ -453,35 +440,19 @@ public class ChannelBrowserScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() {
-        return false;
+    public void close() {
+        if (client != null) {
+            client.setScreen(parent);
+        }
     }
 
-    private class ChannelBrowserListWidget extends AlwaysSelectedEntryListWidget<ChannelBrowserEntry> {
+    private class ChannelBrowserListWidget extends TelegraphListWidget<ChannelBrowserEntry> {
         public ChannelBrowserListWidget(net.minecraft.client.MinecraftClient client, int width, int height, int y, int itemHeight) {
             super(client, width, height, y, itemHeight);
         }
-
-        public void clearEntries() {
-            this.children().clear();
-        }
-
-        public void addChannelEntry(ChannelBrowserEntry entry) {
-            this.addEntry(entry);
-        }
-
-        @Override
-        public int getRowWidth() {
-            return this.width - 12;
-        }
-
-        @Override
-        protected int getScrollbarX() {
-            return this.getX() + this.width - 6;
-        }
     }
 
-    private class ChannelBrowserEntry extends AlwaysSelectedEntryListWidget.Entry<ChannelBrowserEntry> {
+    private class ChannelBrowserEntry extends TelegraphListWidget.Entry<ChannelBrowserEntry> {
         private final TelegraphChannel.ChannelMetadata metadata;
 
         public ChannelBrowserEntry(TelegraphChannel.ChannelMetadata metadata) {
@@ -493,31 +464,30 @@ public class ChannelBrowserScreen extends Screen {
                           int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
             boolean selected = selectedMapId == metadata.mapId();
 
-            int bgColor = selected ? 0x60FFFFFF : (hovered ? 0x40FFFFFF : 0x20000000);
-            context.fill(x, y, x + entryWidth, y + entryHeight, bgColor);
+            renderBackground(context, x, y, entryWidth, entryHeight, hovered, selected);
 
-            int nameColor = selected ? 0xFFFFFF00 : 0xFFFFFFFF;
+            int nameColor = selected ? TelegraphTheme.SELECTED : TelegraphTheme.TEXT_PRIMARY;
             context.drawText(client.textRenderer, metadata.displayName(), x + 5, y + 3, nameColor, false);
 
             String protocolBadge = metadata.protocolName().equals("Carnite") ? "§6[C]" : "§b[T]";
-            context.drawText(client.textRenderer, protocolBadge, x + entryWidth - 25, y + 3, 0xFFFFFFFF, false);
+            context.drawText(client.textRenderer, protocolBadge, x + entryWidth - 25, y + 3, TelegraphTheme.TEXT_PRIMARY, false);
 
             String infoLine = "§7Map " + metadata.mapId() + " - " + metadata.messageCount() + " msgs";
-            context.drawText(client.textRenderer, infoLine, x + 5, y + 15, 0xFFAAAAAA, false);
+            context.drawText(client.textRenderer, infoLine, x + 5, y + 15, TelegraphTheme.TEXT_SECONDARY, false);
 
             if (metadata.lastActivity() != null) {
                 String timeAgo = getTimeAgo(metadata.lastActivity());
-                context.drawText(client.textRenderer, "§7" + timeAgo, x + 5, y + 27, 0xFF888888, false);
+                context.drawText(client.textRenderer, "§7" + timeAgo, x + 5, y + 27, TelegraphTheme.TEXT_MUTED, false);
             }
 
             if (metadata.lastActivity() != null) {
                 boolean isActive = metadata.lastActivity().isAfter(Instant.now().minus(Duration.ofHours(24)));
-                int dotColor = isActive ? 0xFF55FF55 : 0xFF555555;
+                int dotColor = isActive ? TelegraphTheme.SUCCESS : 0xFF555555;
                 context.fill(x + entryWidth - 8, y + entryHeight - 8, x + entryWidth - 4, y + entryHeight - 4, dotColor);
             }
 
             if (metadata.archived()) {
-                context.drawText(client.textRenderer, "§c[A]", x + entryWidth - 45, y + 3, 0xFFFFFFFF, false);
+                context.drawText(client.textRenderer, "§c[A]", x + entryWidth - 45, y + 3, TelegraphTheme.TEXT_PRIMARY, false);
             }
         }
 

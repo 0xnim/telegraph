@@ -1,143 +1,139 @@
 package xyz.nim.telegraph.client;
 
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import xyz.nim.telegraph.client.protocol.CarniteProtocol;
 import xyz.nim.telegraph.client.protocol.MapTelegraphProtocol;
+import xyz.nim.telegraph.client.ui.TelegraphScreen;
+import xyz.nim.telegraph.client.ui.TelegraphTheme;
+import xyz.nim.telegraph.client.ui.components.Buttons;
+import xyz.nim.telegraph.client.ui.components.TextFields;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MessageComposerScreen extends Screen {
-    private static final int PANEL_MARGIN = 10;
-    private static final int PANEL_PADDING = 6;
-    private static final int BUTTON_HEIGHT = 20;
-    private static final int PANEL_BORDER_COLOR = 0xFFC0C0C0;
+public class MessageComposerScreen extends TelegraphScreen {
     private static final int MAX_RECOMMENDED_LENGTH = 32;
-    
-    private final Screen parent;
+
+    private final net.minecraft.client.gui.screen.Screen parent;
     private final TelegraphChannel channel;
     private final int mapId;
     private final ChannelSettings settings;
-    
+
     private TextFieldWidget messageField;
     private ButtonWidget doneButton;
     private ButtonWidget copyButton;
     private ButtonWidget clearButton;
     private List<ButtonWidget> colorButtons = new ArrayList<>();
     private List<ButtonWidget> templateButtons = new ArrayList<>();
-    
+
     private String selectedBannerColor = "white";
-    
-    public MessageComposerScreen(Screen parent, TelegraphChannel channel, int mapId) {
+
+    public MessageComposerScreen(net.minecraft.client.gui.screen.Screen parent, TelegraphChannel channel, int mapId) {
         super(Text.literal("Message Composer"));
         this.parent = parent;
         this.channel = channel;
         this.mapId = mapId;
         this.settings = channel.getOrCreateSettings(mapId);
     }
-    
+
     @Override
     protected void init() {
         super.init();
-        
-        int centerX = width / 2;
-        int panelWidth = Math.min(500, width - 40);
-        int panelX = centerX - panelWidth / 2;
-        int inputFieldY = 60;
-        int rowSpacing = 35;
-        int bottomMargin = 60;
-        
-        messageField = new TextFieldWidget(textRenderer, panelX + PANEL_PADDING, inputFieldY, panelWidth - PANEL_PADDING * 2, 20, Text.literal("Message"));
-        messageField.setMaxLength(64);
+
+        var centered = layout.centered(500);
+        int panelX = centered.x;
+        int panelWidth = centered.width;
+        int inputFieldY = layout.margin + layout.headerHeight + layout.spacing;
+
+        messageField = TextFields.message(textRenderer, panelX + layout.padding, inputFieldY,
+                panelWidth - layout.padding * 2, layout, 64);
         messageField.setPlaceholder(Text.literal("Type your message..."));
         addDrawableChild(messageField);
-        
-        int y = inputFieldY + rowSpacing;
-        
+
+        int y = inputFieldY + layout.controlHeight + layout.spacing * 2;
+
         boolean isCarnite = settings.getProtocol() instanceof CarniteProtocol;
-        
+
         if (isCarnite) {
-            Text.literal("Select Banner Color (Tense):").getString();
-            
             String[][] colors = {
-                {"white", "White (Present)", "0xFFFFFFFF"},
-                {"light_gray", "Lt.Grey (Past)", "0xFFAAAAAA"},
-                {"gray", "Grey (Future)", "0xFF555555"},
-                {"pink", "Pink (Might)", "0xFFFF88FF"},
-                {"red", "Red (URGENT)", "0xFFFF0000"},
-                {"light_blue", "Lt.Blue (Request)", "0xFF88DDFF"},
-                {"black", "Black (Decided)", "0xFF222222"},
-                {"blue", "Blue (Question)", "0xFF5555FF"},
-                {"yellow", "Yellow (Trade)", "0xFFFFFF00"},
-                {"purple", "Purple (Goal)", "0xFFAA00FF"}
+                {"white", "White (Present)"},
+                {"light_gray", "Lt.Grey (Past)"},
+                {"gray", "Grey (Future)"},
+                {"pink", "Pink (Might)"},
+                {"red", "Red (URGENT)"},
+                {"light_blue", "Lt.Blue (Request)"},
+                {"black", "Black (Decided)"},
+                {"blue", "Blue (Question)"},
+                {"yellow", "Yellow (Trade)"},
+                {"purple", "Purple (Goal)"}
             };
-            
-            int colorX = panelX + PANEL_PADDING;
+
+            int colorX = panelX + layout.padding;
             int colorY = y;
-            
+            int colorBtnWidth = Math.min(140, (panelWidth - layout.padding * 2) / 2 - layout.spacing);
+
             for (String[] color : colors) {
                 String colorKey = color[0];
                 String label = color[1];
-                
-                ButtonWidget colorBtn = ButtonWidget.builder(Text.literal(label), button -> {
-                    selectedBannerColor = colorKey;
-                    updateColorButtons();
-                }).dimensions(colorX, colorY, 140, 18).build();
-                
+
+                ButtonWidget colorBtn = Buttons.create(Text.literal(label), colorX, colorY,
+                        colorBtnWidth, layout.buttonHeight, button -> {
+                            selectedBannerColor = colorKey;
+                            updateColorButtons();
+                        });
+
                 addDrawableChild(colorBtn);
                 colorButtons.add(colorBtn);
-                
-                colorY += 20;
-                if (colorY > height - 100) {
-                    colorX += 145;
+
+                colorY += layout.buttonHeight + 2;
+                if (colorY > height - layout.margin - layout.buttonHeight * 3) {
+                    colorX += colorBtnWidth + layout.spacing;
                     colorY = y;
                 }
             }
         } else {
-            addTemplateButtons(panelX, y);
+            addTemplateButtons(panelX, y, panelWidth);
         }
-        
-        int bottomButtonY = height - bottomMargin;
-        int copyButtonWidth = 150;
-        int clearButtonWidth = 80;
-        int doneButtonWidth = 80;
-        
-        copyButton = ButtonWidget.builder(Text.literal("Copy to Clipboard"), button -> {
-            String message = getFormattedMessage();
-            if (client != null) {
-                client.keyboard.setClipboard(message);
-                if (client.player != null) {
-                    client.player.sendMessage(Text.literal("§aCopied to clipboard!"), false);
-                }
-            }
-        }).dimensions(panelX + PANEL_PADDING, bottomButtonY, copyButtonWidth, 20).build();
+
+        int bottomButtonY = height - layout.margin - layout.buttonHeight;
+        int copyButtonWidth = Math.min(150, panelWidth / 3);
+        int clearButtonWidth = Math.min(80, panelWidth / 5);
+        int doneButtonWidth = Math.min(80, panelWidth / 5);
+
+        copyButton = Buttons.create(Text.literal("Copy to Clipboard"),
+                panelX + layout.padding, bottomButtonY, copyButtonWidth, layout, button -> {
+                    String message = getFormattedMessage();
+                    if (client != null) {
+                        client.keyboard.setClipboard(message);
+                        toastManager.success("Copied to clipboard!");
+                    }
+                });
         addDrawableChild(copyButton);
-        
-        clearButton = ButtonWidget.builder(Text.literal("Clear"), button -> {
-            if (messageField != null) {
-                messageField.setText("");
-            }
-        }).dimensions(panelX + PANEL_PADDING + copyButtonWidth + 5, bottomButtonY, clearButtonWidth, 20).build();
+
+        clearButton = Buttons.create(Text.literal("Clear"),
+                panelX + layout.padding + copyButtonWidth + layout.spacing, bottomButtonY,
+                clearButtonWidth, layout, button -> {
+                    if (messageField != null) {
+                        messageField.setText("");
+                    }
+                });
         addDrawableChild(clearButton);
-        
-        doneButton = ButtonWidget.builder(Text.literal("Done"), button -> {
-            if (client != null) {
-                client.setScreen(parent);
-            }
-        }).dimensions(panelX + panelWidth - PANEL_PADDING - doneButtonWidth, bottomButtonY, doneButtonWidth, 20).build();
+
+        doneButton = Buttons.create(Text.literal("Done"),
+                panelX + panelWidth - layout.padding - doneButtonWidth, bottomButtonY,
+                doneButtonWidth, layout, button -> close());
         addDrawableChild(doneButton);
-        
+
         updateColorButtons();
     }
-    
-    private void addTemplateButtons(int panelX, int y) {
+
+    private void addTemplateButtons(int panelX, int y, int panelWidth) {
         String channelType = settings.getChannelType();
         List<String> templates = new ArrayList<>();
-        
+
         if (MapTelegraphProtocol.KOS_CHANNEL.equals(channelType)) {
             templates.add("PlayerName - Raiding");
             templates.add("PlayerName - Griefing");
@@ -152,87 +148,105 @@ public class MessageComposerScreen extends Screen {
             templates.add("Trade available: ");
             templates.add("Looking for: ");
         }
-        
+
         int templateY = y;
+        int templateWidth = Math.min(200, panelWidth - layout.padding * 2);
         for (String template : templates) {
-            ButtonWidget templateBtn = ButtonWidget.builder(Text.literal(template), button -> {
-                if (messageField != null) {
-                    messageField.setText(template);
-                }
-            }).dimensions(panelX + PANEL_PADDING, templateY, 200, 18).build();
-            
+            ButtonWidget templateBtn = Buttons.create(Text.literal(template),
+                    panelX + layout.padding, templateY, templateWidth, layout, button -> {
+                        if (messageField != null) {
+                            messageField.setText(template);
+                        }
+                    });
+
             addDrawableChild(templateBtn);
             templateButtons.add(templateBtn);
-            templateY += 20;
+            templateY += layout.buttonHeight + 2;
         }
     }
-    
+
     private void updateColorButtons() {
+        String[] colors = {"white", "light_gray", "gray", "pink", "red", "light_blue", "black", "blue", "yellow", "purple"};
         for (int i = 0; i < colorButtons.size(); i++) {
-            String[] colors = {"white", "light_gray", "gray", "pink", "red", "light_blue", "black", "blue", "yellow", "purple"};
             if (i < colors.length) {
                 colorButtons.get(i).active = !colors[i].equals(selectedBannerColor);
             }
         }
     }
-    
+
     private String getFormattedMessage() {
         String message = messageField != null ? messageField.getText() : "";
-        
+
         if (settings.getProtocol() instanceof CarniteProtocol) {
             return "[" + selectedBannerColor.toUpperCase() + " BANNER] " + message;
         }
-        
+
         return message;
     }
-    
+
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        super.render(context, mouseX, mouseY, delta);
-        
-        int centerX = width / 2;
-        int panelWidth = Math.min(500, width - 40);
-        int panelX = centerX - panelWidth / 2;
-        
-        context.drawText(textRenderer, "Composing for: " + channel.getDisplayName(mapId), panelX + PANEL_PADDING, 40, 0xFFFFFFFF, false);
-        
+    protected void renderPanels(DrawContext context, int mouseX, int mouseY, float delta) {
+        var centered = layout.centered(500);
+        int panelX = centered.x;
+        int panelWidth = centered.width;
+
+        // Channel info
+        context.drawText(textRenderer, "Composing for: " + channel.getDisplayName(mapId),
+                panelX + layout.padding, layout.margin, TelegraphTheme.TEXT_PRIMARY, false);
+
         String protocolName = settings.getProtocol() instanceof CarniteProtocol ? "Carnite Telegraphic" : "Map Telegraph";
-        context.drawText(textRenderer, "Protocol: " + protocolName, panelX + PANEL_PADDING, 50, 0xFFAAAAAA, false);
-        
-        if (messageField != null && !messageField.getText().isEmpty()) {
-            int length = messageField.getText().length();
-            int color = length > MAX_RECOMMENDED_LENGTH ? 0xFFFF5555 : 0xFF55FF55;
-            String lengthText = length + " chars" + (length > MAX_RECOMMENDED_LENGTH ? " (recommended: ≤32)" : "");
-            context.drawText(textRenderer, lengthText, panelX + panelWidth - PANEL_PADDING - textRenderer.getWidth(lengthText), 50, color, false);
-        }
-        
-        context.drawText(textRenderer, "Preview:", panelX + PANEL_PADDING, height - 85, 0xFFFFFFFF, false);
-        String preview = getFormattedMessage();
-        context.drawText(textRenderer, preview, panelX + PANEL_PADDING + 60, height - 85, 0xFFFFFF00, false);
-        
+        context.drawText(textRenderer, "Protocol: " + protocolName,
+                panelX + layout.padding, layout.margin + 10, TelegraphTheme.TEXT_SECONDARY, false);
+
+        // Section header
+        int headerY = layout.margin + layout.headerHeight + layout.spacing + layout.controlHeight + layout.spacing;
         if (settings.getProtocol() instanceof CarniteProtocol) {
-            context.drawText(textRenderer, "Select Banner Color:", panelX + PANEL_PADDING, 85, 0xFFFFFFFF, false);
-            context.drawText(textRenderer, "Tip: Rename banner in anvil, place on map, right-click with map", panelX + PANEL_PADDING, height - 100, 0xFFAAAAAA, false);
+            context.drawText(textRenderer, "Select Banner Color:",
+                    panelX + layout.padding, headerY, TelegraphTheme.TEXT_PRIMARY, false);
         } else {
-            context.drawText(textRenderer, "Quick Templates:", panelX + PANEL_PADDING, 85, 0xFFFFFFFF, false);
-            
+            context.drawText(textRenderer, "Quick Templates:",
+                    panelX + layout.padding, headerY, TelegraphTheme.TEXT_PRIMARY, false);
+
             if (settings.getChannelType() != null) {
-                String typeDesc = settings.getProtocol().getChannelTypeDescription(settings.getChannelType());
                 int typeColor = settings.getProtocol().getColorForChannelType(settings.getChannelType());
-                context.drawText(textRenderer, "Channel: " + settings.getChannelType(), panelX + 220, 85, typeColor, false);
+                context.drawText(textRenderer, "Channel: " + settings.getChannelType(),
+                        panelX + 150, headerY, typeColor, false);
             }
         }
     }
-    
+
+    @Override
+    protected void renderOverlays(DrawContext context, int mouseX, int mouseY, float delta) {
+        var centered = layout.centered(500);
+        int panelX = centered.x;
+        int panelWidth = centered.width;
+
+        // Character count
+        if (messageField != null && !messageField.getText().isEmpty()) {
+            int length = messageField.getText().length();
+            int color = length > MAX_RECOMMENDED_LENGTH ? TelegraphTheme.ERROR : TelegraphTheme.SUCCESS;
+            String lengthText = length + " chars" + (length > MAX_RECOMMENDED_LENGTH ? " (recommended: \u226432)" : "");
+            context.drawText(textRenderer, lengthText,
+                    panelX + panelWidth - layout.padding - textRenderer.getWidth(lengthText),
+                    layout.margin + 10, color, false);
+        }
+
+        // Preview
+        int previewY = height - layout.margin - layout.buttonHeight - layout.spacing - 20;
+        context.drawText(textRenderer, "Preview:", panelX + layout.padding, previewY, TelegraphTheme.TEXT_PRIMARY, false);
+        String preview = getFormattedMessage();
+        context.drawText(textRenderer, preview, panelX + layout.padding + 60, previewY, TelegraphTheme.SELECTED, false);
+
+        if (settings.getProtocol() instanceof CarniteProtocol) {
+            context.drawText(textRenderer, "Tip: Rename banner in anvil, place on map, right-click with map",
+                    panelX + layout.padding, previewY - 15, TelegraphTheme.TEXT_SECONDARY, false);
+        }
+    }
+
     @Override
     public void close() {
         if (client != null) {
             client.setScreen(parent);
         }
-    }
-    
-    @Override
-    public boolean shouldPause() {
-        return false;
     }
 }
