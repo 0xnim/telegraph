@@ -2,182 +2,206 @@ package xyz.nim.telegraph.client;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.AlwaysSelectedEntryListWidget;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import xyz.nim.telegraph.client.carnite.CarniteVocabulary;
+import xyz.nim.telegraph.client.ui.ResponsiveLayout;
+import xyz.nim.telegraph.client.ui.TelegraphScreen;
+import xyz.nim.telegraph.client.ui.TelegraphTheme;
+import xyz.nim.telegraph.client.ui.components.Buttons;
+import xyz.nim.telegraph.client.ui.components.TelegraphListWidget;
+import xyz.nim.telegraph.client.ui.components.TextFields;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
-public class GlobalSettingsScreen extends Screen {
-    private static final int PANEL_BORDER_COLOR = 0xFFC0C0C0;
-    private static final int HEADER_COLOR = 0xFF222222;
-    
+public class GlobalSettingsScreen extends TelegraphScreen {
+
     private final Screen parent;
-    
+
     private TextFieldWidget civCodeField;
     private TextFieldWidget civNameField;
+    private TextFieldWidget searchField;
     private ButtonWidget addCivButton;
     private ButtonWidget doneButton;
-    private ButtonWidget mapRefreshToggle;
     private CivilizationListWidget civList;
-    private boolean mapRefreshEnabled = false;
-    
+
+    private boolean codeFieldValid = true;
+    private String searchFilter = "";
+
     public GlobalSettingsScreen(Screen parent) {
         super(Text.literal("Global Telegraph Settings"));
         this.parent = parent;
     }
-    
+
     @Override
     protected void init() {
         super.init();
-        
-        MapDecorationTracker tracker = TelegraphClient.getMapDecorationTracker();
-        if (tracker != null) {
-            mapRefreshEnabled = tracker.isMapRefreshEnabled();
-        }
-        
-        int margin = 20;
-        int controlHeight = 20;
-        int rowSpacing = 30;
-        int headerHeight = 30;
-        int panelWidth = width - (margin * 2);
-        int y = 60;
-        
-        // Map Refresh Toggle
-        mapRefreshToggle = ButtonWidget.builder(
-            Text.literal("Auto Map Refresh: " + (mapRefreshEnabled ? "§aON" : "§cOFF")),
-            button -> {
-                mapRefreshEnabled = !mapRefreshEnabled;
-                if (tracker != null) {
-                    tracker.setMapRefreshEnabled(mapRefreshEnabled);
-                }
-                button.setMessage(Text.literal("Auto Map Refresh: " + (mapRefreshEnabled ? "§aON" : "§cOFF")));
-            }
-        ).dimensions(margin, y, 200, controlHeight).build();
-        addDrawableChild(mapRefreshToggle);
-        
-        y += rowSpacing;
-        y += headerHeight + 10;
-        
-        // Input fields - responsive widths
-        int codeFieldWidth = Math.min(80, width / 8);
-        int nameFieldWidth = Math.min(250, width / 3);
-        int addButtonWidth = Math.min(130, width / 6);
-        
-        civCodeField = new TextFieldWidget(textRenderer, margin, y, codeFieldWidth, controlHeight, Text.literal("Code"));
-        civCodeField.setMaxLength(4);
-        civCodeField.setPlaceholder(Text.literal("Code..."));
+
+        int y = layout.margin + layout.headerHeight + layout.spacing;
+
+        // Input fields - responsive widths based on screen size
+        int codeFieldWidth = Math.max(60, Math.min(80, layout.contentWidth() / 8));
+        int nameFieldWidth = Math.max(150, Math.min(250, layout.contentWidth() / 3));
+        int addButtonWidth = Math.max(100, Math.min(130, layout.contentWidth() / 6));
+
+        civCodeField = TextFields.code(textRenderer, layout.margin, y, codeFieldWidth, layout, "Code...", 4);
+        civCodeField.setChangedListener(text -> {
+            String upper = text.trim().toUpperCase();
+            codeFieldValid = upper.isEmpty() || upper.matches("[A-Z]{2,4}");
+        });
         addDrawableChild(civCodeField);
-        
-        civNameField = new TextFieldWidget(textRenderer, margin + codeFieldWidth + 5, y, nameFieldWidth, controlHeight, Text.literal("Name"));
-        civNameField.setMaxLength(64);
-        civNameField.setPlaceholder(Text.literal("Civilization name..."));
+
+        civNameField = TextFields.input(textRenderer, layout.margin + codeFieldWidth + layout.spacing, y,
+                nameFieldWidth, layout, "Civilization name...", 64);
         addDrawableChild(civNameField);
-        
-        addCivButton = ButtonWidget.builder(Text.literal("Add Civilization"), button -> {
-            String code = civCodeField.getText().trim().toUpperCase();
-            String name = civNameField.getText().trim();
-            
-            if (!code.isEmpty() && !name.isEmpty()) {
-                if (code.matches("[A-Z]{2,4}")) {
-                    CarniteVocabulary.registerCivilization(code, name);
-                    civCodeField.setText("");
-                    civNameField.setText("");
-                    updateCivList();
-                    
-                    if (client != null && client.player != null) {
-                        client.player.sendMessage(Text.literal("§aAdded: " + code + " = " + name), false);
-                    }
-                } else {
-                    if (client != null && client.player != null) {
-                        client.player.sendMessage(Text.literal("§cCode must be 2-4 uppercase letters"), false);
-                    }
-                }
-            }
-        }).dimensions(margin + codeFieldWidth + nameFieldWidth + 10, y, addButtonWidth, controlHeight).build();
+
+        addCivButton = Buttons.create(Text.literal("Add Civilization"),
+                layout.margin + codeFieldWidth + nameFieldWidth + layout.spacing * 2, y,
+                addButtonWidth, layout, button -> addCivilization());
         addDrawableChild(addCivButton);
-        
-        y += rowSpacing;
-        
+
+        y += layout.controlHeight + layout.spacing * 2;
+
+        // Search field
+        int searchWidth = Math.max(120, Math.min(200, layout.contentWidth() / 4));
+        searchField = TextFields.search(textRenderer, layout.margin, y, searchWidth, layout);
+        searchField.setPlaceholder(Text.literal("Filter civs..."));
+        searchField.setChangedListener(text -> {
+            searchFilter = text.toLowerCase();
+            updateCivList();
+        });
+        addDrawableChild(searchField);
+
+        y += layout.controlHeight + layout.spacing * 2;
+
         // Civilization list - fills remaining space
-        int listHeight = height - y - 60;
-        civList = new CivilizationListWidget(
-            client,
-            panelWidth,
-            listHeight,
-            y,
-            24
-        );
-        civList.setX(margin);
+        int listHeight = height - y - layout.margin - layout.buttonHeight - layout.spacing * 2;
+        civList = new CivilizationListWidget(client, layout.contentWidth(), listHeight, y, 24);
+        civList.setX(layout.margin);
         addDrawableChild(civList);
-        
+
         updateCivList();
-        
+
         // Done button - centered at bottom
-        int buttonWidth = 150;
-        doneButton = ButtonWidget.builder(Text.literal("Done"), button -> {
-            if (client != null) {
-                client.setScreen(parent);
-            }
-        }).dimensions(width / 2 - buttonWidth / 2, height - 28, buttonWidth, controlHeight).build();
+        doneButton = Buttons.create(Text.literal("Done"),
+                layout.centerX(layout.buttonWidth), height - layout.margin - layout.buttonHeight,
+                layout.buttonWidth, layout, button -> close());
         addDrawableChild(doneButton);
     }
-    
+
+    private void addCivilization() {
+        String code = civCodeField.getText().trim().toUpperCase();
+        String name = civNameField.getText().trim();
+
+        if (code.isEmpty() || name.isEmpty()) {
+            toastManager.warning("Please enter both code and name");
+            return;
+        }
+
+        if (!code.matches("[A-Z]{2,4}")) {
+            toastManager.error("Code must be 2-4 uppercase letters");
+            codeFieldValid = false;
+            return;
+        }
+
+        if (CarniteVocabulary.getAllCivilizations().containsKey(code)) {
+            toastManager.warning("Civilization '" + code + "' already exists");
+            return;
+        }
+
+        CarniteVocabulary.registerCivilization(code, name);
+        civCodeField.setText("");
+        civNameField.setText("");
+        codeFieldValid = true;
+        updateCivList();
+        toastManager.success("Added: " + code + " = " + name);
+    }
+
     private void updateCivList() {
         if (civList == null) return;
-        
-        civList.clear();
-        
+
+        civList.clearEntries();
+
         Map<String, String> allCivs = CarniteVocabulary.getAllCivilizations();
         List<Map.Entry<String, String>> sortedCivs = new ArrayList<>(allCivs.entrySet());
         sortedCivs.sort(Map.Entry.comparingByKey());
-        
+
         for (Map.Entry<String, String> entry : sortedCivs) {
-            civList.addCivEntry(new CivilizationListWidget.CivEntry(
-                client,
-                entry.getKey(),
-                entry.getValue(),
-                this::onRemoveCiv
-            ));
+            if (!searchFilter.isEmpty()) {
+                if (!entry.getKey().toLowerCase().contains(searchFilter) &&
+                    !entry.getValue().toLowerCase().contains(searchFilter)) {
+                    continue;
+                }
+            }
+            civList.addEntryToList(new CivEntry(client, entry.getKey(), entry.getValue(),
+                    this::showRemoveConfirmation, this::onEditCiv));
         }
     }
-    
-    private void onRemoveCiv(String code) {
+
+    private void showRemoveConfirmation(String code) {
+        String name = CarniteVocabulary.getAllCivilizations().get(code);
+        confirm("Remove Civilization",
+                "Are you sure you want to remove \"" + code + "\" (" + name + ")?",
+                () -> {
+                    CarniteVocabulary.removeCivilization(code);
+                    updateCivList();
+                    toastManager.success("Removed: " + code);
+                });
+    }
+
+    private void onEditCiv(String code) {
+        String name = CarniteVocabulary.getAllCivilizations().get(code);
+        civCodeField.setText(code);
+        civNameField.setText(name);
         CarniteVocabulary.removeCivilization(code);
         updateCivList();
-        
-        if (client != null && client.player != null) {
-            client.player.sendMessage(Text.literal("§cRemoved civilization: " + code), false);
-        }
+        toastManager.info("Editing: " + code + " - Update and click Add");
     }
-    
+
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        super.render(context, mouseX, mouseY, delta);
-        
-        int margin = 20;
-        int headerHeight = 30;
-        int panelWidth = width - (margin * 2);
-        
-        context.drawCenteredTextWithShadow(textRenderer, this.title, width / 2, 20, 0xFFFFFFFF);
-        
-        int y = 90;
-        int civHeaderY = y;
-        
-        context.fill(margin, civHeaderY, margin + panelWidth, civHeaderY + headerHeight, HEADER_COLOR);
-        context.drawBorder(margin, civHeaderY, panelWidth, headerHeight, PANEL_BORDER_COLOR);
-        context.drawText(textRenderer, "§eGlobal Civilizations", margin + 8, civHeaderY + 10, 0xFFFFFFFF, false);
-        
-        y += 120;
-        context.drawText(textRenderer, "§7Civilizations are shared across all channels.", 
-            margin + 8, y, 0xFF888888, false);
-        y += 12;
-        context.drawText(textRenderer, "§7Auto Map Refresh: Periodically cycles maps to force server updates (every 60s)", 
-            margin + 8, y, 0xFF888888, false);
+    protected void renderPanels(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Title
+        context.drawCenteredTextWithShadow(textRenderer, this.title, width / 2, layout.margin, TelegraphTheme.TEXT_PRIMARY);
+
+        // Header panel
+        int headerY = layout.margin + layout.spacing + 8;
+        context.fill(layout.margin, headerY, layout.margin + layout.contentWidth(),
+                headerY + layout.headerHeight, TelegraphTheme.HEADER_BG);
+        drawBorder(context, layout.margin, headerY, layout.contentWidth(), layout.headerHeight, TelegraphTheme.PANEL_BORDER);
+        context.drawText(textRenderer, "\u00A7eGlobal Civilizations", layout.margin + layout.padding,
+                headerY + (layout.headerHeight - 8) / 2, TelegraphTheme.TEXT_PRIMARY, false);
     }
-    
+
+    @Override
+    protected void renderOverlays(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Code field validation error
+        if (!codeFieldValid && civCodeField != null) {
+            int fx = civCodeField.getX() - 1;
+            int fy = civCodeField.getY() - 1;
+            int fw = civCodeField.getWidth() + 2;
+            int fh = civCodeField.getHeight() + 2;
+            drawBorder(context, fx, fy, fw, fh, TelegraphTheme.ERROR);
+            context.drawText(textRenderer, "\u00A7c2-4 letters", fx, fy + fh + 2, TelegraphTheme.ERROR, false);
+        }
+
+        // Name field character counter
+        if (civNameField != null) {
+            int nameLen = civNameField.getText().length();
+            int nameColor = nameLen > 50 ? TelegraphTheme.WARNING : TelegraphTheme.TEXT_MUTED;
+            String counter = nameLen + "/64";
+            int counterX = civNameField.getX() + civNameField.getWidth() - textRenderer.getWidth(counter);
+            context.drawText(textRenderer, counter, counterX, civNameField.getY() + civNameField.getHeight() + 2, nameColor, false);
+        }
+
+        // Info text
+        int infoY = civList != null ? civList.getBottom() + layout.spacing : height - 80;
+        context.drawText(textRenderer, "\u00A77Civilizations are shared across all channels.",
+                layout.margin + layout.padding, infoY, TelegraphTheme.TEXT_MUTED, false);
+    }
+
     @Override
     public void close() {
         if (client != null) {
@@ -188,78 +212,75 @@ public class GlobalSettingsScreen extends Screen {
             client.setScreen(parent);
         }
     }
-    
-    @Override
-    public boolean shouldPause() {
-        return false;
-    }
-    
-    private static class CivilizationListWidget extends AlwaysSelectedEntryListWidget<CivilizationListWidget.CivEntry> {
+
+    private static class CivilizationListWidget extends TelegraphListWidget<CivEntry> {
         public CivilizationListWidget(net.minecraft.client.MinecraftClient client, int width, int height, int y, int itemHeight) {
             super(client, width, height, y, itemHeight);
         }
-        
-        public void clear() {
-            children().clear();
+    }
+
+    private static class CivEntry extends TelegraphListWidget.Entry<CivEntry> {
+        private final net.minecraft.client.MinecraftClient client;
+        private final String code;
+        private final String name;
+        private final java.util.function.Consumer<String> onRemove;
+        private final java.util.function.Consumer<String> onEdit;
+        private ButtonWidget removeButton;
+        private ButtonWidget editButton;
+
+        public CivEntry(net.minecraft.client.MinecraftClient client, String code, String name,
+                        java.util.function.Consumer<String> onRemove,
+                        java.util.function.Consumer<String> onEdit) {
+            this.client = client;
+            this.code = code;
+            this.name = name;
+            this.onRemove = onRemove;
+            this.onEdit = onEdit;
         }
-        
-        public void addCivEntry(CivEntry entry) {
-            super.addEntry(entry);
-        }
-        
+
         @Override
-        public int getRowWidth() {
-            return width - 20;
+        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight,
+                          int mouseX, int mouseY, boolean hovered, float tickDelta) {
+
+            renderBackground(context, x, y, entryWidth, entryHeight, hovered, false);
+
+            context.drawText(client.textRenderer, "\u00A76" + code, x + 5, y + 6, TelegraphTheme.TEXT_PRIMARY, false);
+            context.drawText(client.textRenderer, "\u00A7f\u2192 " + name, x + 60, y + 6, TelegraphTheme.TEXT_PRIMARY, false);
+
+            if (editButton == null) {
+                editButton = ButtonWidget.builder(Text.literal("Edit"), button -> onEdit.accept(code))
+                        .dimensions(x + entryWidth - 145, y + 2, 55, 20).build();
+            } else {
+                editButton.setX(x + entryWidth - 145);
+                editButton.setY(y + 2);
+            }
+
+            if (removeButton == null) {
+                removeButton = ButtonWidget.builder(Text.literal("Remove"), button -> onRemove.accept(code))
+                        .dimensions(x + entryWidth - 85, y + 2, 75, 20).build();
+            } else {
+                removeButton.setX(x + entryWidth - 85);
+                removeButton.setY(y + 2);
+            }
+
+            editButton.render(context, mouseX, mouseY, tickDelta);
+            removeButton.render(context, mouseX, mouseY, tickDelta);
         }
-        
+
         @Override
-        protected int getScrollbarX() {
-            return getX() + width - 6;
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (editButton != null && editButton.mouseClicked(mouseX, mouseY, button)) {
+                return true;
+            }
+            if (removeButton != null && removeButton.mouseClicked(mouseX, mouseY, button)) {
+                return true;
+            }
+            return super.mouseClicked(mouseX, mouseY, button);
         }
-        
-        public static class CivEntry extends Entry<CivEntry> {
-            private final net.minecraft.client.MinecraftClient client;
-            private final String code;
-            private final String name;
-            private final java.util.function.Consumer<String> onRemove;
-            private ButtonWidget removeButton;
-            
-            public CivEntry(net.minecraft.client.MinecraftClient client, String code, String name, 
-                           java.util.function.Consumer<String> onRemove) {
-                this.client = client;
-                this.code = code;
-                this.name = name;
-                this.onRemove = onRemove;
-            }
-            
-            @Override
-            public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, 
-                              int mouseX, int mouseY, boolean hovered, float tickDelta) {
-                
-                context.drawText(client.textRenderer, "§6" + code, x + 5, y + 6, 0xFFFFFFFF, false);
-                context.drawText(client.textRenderer, "§f→ " + name, x + 60, y + 6, 0xFFFFFFFF, false);
-                
-                if (removeButton == null) {
-                    removeButton = ButtonWidget.builder(Text.literal("Remove"), button -> {
-                        onRemove.accept(code);
-                    }).dimensions(x + entryWidth - 80, y + 2, 75, 20).build();
-                } else {
-                    removeButton.setX(x + entryWidth - 80);
-                    removeButton.setY(y + 2);
-                }
-                
-                removeButton.render(context, mouseX, mouseY, tickDelta);
-            }
-            
-            @Override
-            public boolean mouseClicked(double mouseX, double mouseY, int button) {
-                return (removeButton != null && removeButton.mouseClicked(mouseX, mouseY, button)) || super.mouseClicked(mouseX, mouseY, button);
-            }
-            
-            @Override
-            public Text getNarration() {
-                return Text.literal("Civilization: " + code + " - " + name);
-            }
+
+        @Override
+        public Text getNarration() {
+            return Text.literal("Civilization: " + code + " - " + name);
         }
     }
 }

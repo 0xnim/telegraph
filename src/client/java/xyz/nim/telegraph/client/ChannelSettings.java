@@ -2,6 +2,8 @@ package xyz.nim.telegraph.client;
 
 import xyz.nim.telegraph.client.protocol.CommunicationProtocol;
 import xyz.nim.telegraph.client.protocol.MapTelegraphProtocol;
+import xyz.nim.telegraph.client.protocol.transport.NoneTransport;
+import xyz.nim.telegraph.client.protocol.transport.TransportProtocol;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +18,7 @@ public class ChannelSettings {
     private NotificationLevel notificationLevel;
     private CommunicationProtocol protocol;
     private String channelType;
+    private TransportProtocol transportProtocol;
     
     public enum NotificationLevel {
         ALL,
@@ -33,6 +36,7 @@ public class ChannelSettings {
         this.notificationLevel = NotificationLevel.ALL;
         this.protocol = new MapTelegraphProtocol();
         this.channelType = MapTelegraphProtocol.CIVILIAN_CHANNEL;
+        this.transportProtocol = new NoneTransport();
     }
     
     public int getMapId() {
@@ -114,5 +118,13 @@ public class ChannelSettings {
     
     public void setShowTranslations(boolean showTranslations) {
         this.showTranslations = showTranslations;
+    }
+
+    public TransportProtocol getTransportProtocol() {
+        return transportProtocol;
+    }
+
+    public void setTransportProtocol(TransportProtocol transportProtocol) {
+        this.transportProtocol = transportProtocol;
     }
 }

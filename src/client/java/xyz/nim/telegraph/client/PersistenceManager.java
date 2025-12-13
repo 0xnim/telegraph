@@ -3,6 +3,12 @@ package xyz.nim.telegraph.client;
 import com.google.gson.*;
 import net.minecraft.client.MinecraftClient;
 import xyz.nim.telegraph.client.carnite.CarniteVocabulary;
+import xyz.nim.telegraph.client.protocol.CarniteProtocol;
+import xyz.nim.telegraph.client.protocol.CommunicationProtocol;
+import xyz.nim.telegraph.client.protocol.MapTelegraphProtocol;
+import xyz.nim.telegraph.client.protocol.transport.NoneTransport;
+import xyz.nim.telegraph.client.protocol.transport.TTPTransport;
+import xyz.nim.telegraph.client.protocol.transport.TransportProtocol;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -57,7 +63,10 @@ public class PersistenceManager {
                 settingData.put("showTranslations", s.isShowTranslations());
                 settingData.put("tags", s.getTags());
                 settingData.put("notificationLevel", s.getNotificationLevel().name());
-                
+                settingData.put("protocolName", s.getProtocol().getName());
+                settingData.put("channelType", s.getChannelType());
+                settingData.put("transportProtocolName", s.getTransportProtocol().getName());
+
                 serialized.put(entry.getKey(), settingData);
             }
             
@@ -66,10 +75,16 @@ public class PersistenceManager {
                 channel.getChannelName(mapId).ifPresent(name -> userNames.put(mapId, name));
             }
             
+            Map<String, Long> lastSeen = new HashMap<>();
+            for (Map.Entry<Integer, Instant> entry : channel.getAllLastSeenTimestamps().entrySet()) {
+                lastSeen.put(String.valueOf(entry.getKey()), entry.getValue().toEpochMilli());
+            }
+
             Map<String, Object> data = new HashMap<>();
             data.put("settings", serialized);
             data.put("userNames", userNames);
-            
+            data.put("lastSeen", lastSeen);
+
             String json = gson.toJson(data);
             Files.writeString(settingsPath, json);
             
@@ -121,6 +136,17 @@ public class PersistenceManager {
                             ChannelSettings.NotificationLevel.valueOf(settingData.get("notificationLevel").getAsString())
                         );
                     }
+                    if (settingData.has("protocolName") && !settingData.get("protocolName").isJsonNull()) {
+                        String protocolName = settingData.get("protocolName").getAsString();
+                        settings.setProtocol(createProtocolByName(protocolName));
+                    }
+                    if (settingData.has("channelType") && !settingData.get("channelType").isJsonNull()) {
+                        settings.setChannelType(settingData.get("channelType").getAsString());
+                    }
+                    if (settingData.has("transportProtocolName") && !settingData.get("transportProtocolName").isJsonNull()) {
+                        String transportName = settingData.get("transportProtocolName").getAsString();
+                        settings.setTransportProtocol(createTransportProtocolByName(transportName));
+                    }
                 }
             }
             
@@ -132,7 +158,16 @@ public class PersistenceManager {
                     channel.setUserChannelName(mapId, name);
                 }
             }
-            
+
+            if (root.has("lastSeen")) {
+                JsonObject lastSeenObj = root.getAsJsonObject("lastSeen");
+                for (Map.Entry<String, JsonElement> entry : lastSeenObj.entrySet()) {
+                    int mapId = Integer.parseInt(entry.getKey());
+                    long epochMilli = entry.getValue().getAsLong();
+                    channel.setLastSeenTimestamp(mapId, Instant.ofEpochMilli(epochMilli));
+                }
+            }
+
         } catch (IOException e) {
             System.err.println("Failed to load channel settings: " + e.getMessage());
         }
@@ -339,5 +374,19 @@ public class PersistenceManager {
         } catch (IOException e) {
             System.err.println("Failed to load civilizations: " + e.getMessage());
         }
+    }
+
+    private CommunicationProtocol createProtocolByName(String name) {
+        if ("Carnite".equals(name)) {
+            return new CarniteProtocol();
+        }
+        return new MapTelegraphProtocol();
+    }
+
+    private TransportProtocol createTransportProtocolByName(String name) {
+        if (TTPTransport.NAME.equals(name) || "PTP".equals(name)) {
+            return new TTPTransport();
+        }
+        return new NoneTransport();
     }
 }

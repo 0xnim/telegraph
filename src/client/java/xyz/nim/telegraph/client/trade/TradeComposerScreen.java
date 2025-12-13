@@ -9,31 +9,32 @@ import xyz.nim.telegraph.client.ChannelSettings;
 import xyz.nim.telegraph.client.TelegraphChannel;
 import xyz.nim.telegraph.client.carnite.CarniteComposerScreen;
 import xyz.nim.telegraph.client.carnite.CarniteVocabulary;
+import xyz.nim.telegraph.client.ui.TelegraphScreen;
+import xyz.nim.telegraph.client.ui.TelegraphTheme;
+import xyz.nim.telegraph.client.ui.components.Buttons;
+import xyz.nim.telegraph.client.ui.components.TextFields;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class TradeComposerScreen extends Screen {
-    private static final int PANEL_COLOR = 0xA0000000;
-    private static final int PANEL_BORDER_COLOR = 0xFFC0C0C0;
-    private static final int HEADER_COLOR = 0xFF222222;
-    
+public class TradeComposerScreen extends TelegraphScreen {
+
     private final Screen parent;
     private final TelegraphChannel channel;
     private final int mapId;
     private final ChannelSettings settings;
-    
+
     private List<ItemInputGroup> offeringInputs = new ArrayList<>();
     private List<ItemInputGroup> requestingInputs = new ArrayList<>();
-    
+
     private ButtonWidget addOfferingButton;
     private ButtonWidget addRequestingButton;
     private ButtonWidget previewButton;
     private ButtonWidget sendButton;
     private ButtonWidget backButton;
-    
+
     private String previewMessage = "";
-    
+
     public TradeComposerScreen(Screen parent, TelegraphChannel channel, int mapId, ChannelSettings settings) {
         super(Text.literal("Trade Composer"));
         this.parent = parent;
@@ -41,80 +42,67 @@ public class TradeComposerScreen extends Screen {
         this.mapId = mapId;
         this.settings = settings;
     }
-    
+
     @Override
     protected void init() {
         super.init();
-        
+
         int centerX = width / 2;
-        int startY = 40;
-        int margin = 20;
-        int controlHeight = 20;
-        int bottomMargin = 90;
-        int backButtonWidth = Math.min(60, width / 12);
-        int addButtonWidth = Math.min(100, width / 10);
-        int previewButtonWidth = Math.min(100, width / 10);
-        int sendButtonWidth = Math.min(100, width / 10);
-        int panelHalfWidth = Math.min(220, (width - margin * 2) / 2);
-        
-        backButton = ButtonWidget.builder(Text.literal("← Back"), button -> {
-            if (client != null) {
-                client.setScreen(parent);
-            }
-        }).dimensions(margin, margin, backButtonWidth, controlHeight).build();
+        int startY = layout.margin + layout.headerHeight;
+        int panelHalfWidth = Math.min(220, layout.contentWidth() / 2);
+
+        backButton = Buttons.back(layout.margin, layout.margin, layout, button -> close());
         addDrawableChild(backButton);
-        
-        int offeringY = startY + 40;
-        addOfferingButton = ButtonWidget.builder(Text.literal("+ Add Item"), button -> {
-            addOfferingInput();
-        }).dimensions(centerX - panelHalfWidth, offeringY, addButtonWidth, controlHeight).build();
+
+        int offeringY = startY + layout.spacing;
+        addOfferingButton = Buttons.create(Text.literal("+ Add Item"),
+                centerX - panelHalfWidth, offeringY, layout.buttonWidth, layout, button -> addOfferingInput());
         addDrawableChild(addOfferingButton);
-        
-        int requestingY = startY + 180;
-        addRequestingButton = ButtonWidget.builder(Text.literal("+ Add Item"), button -> {
-            addRequestingInput();
-        }).dimensions(centerX - panelHalfWidth, requestingY, addButtonWidth, controlHeight).build();
+
+        int requestingY = startY + 140 + layout.spacing;
+        addRequestingButton = Buttons.create(Text.literal("+ Add Item"),
+                centerX - panelHalfWidth, requestingY, layout.buttonWidth, layout, button -> addRequestingInput());
         addDrawableChild(addRequestingButton);
-        
-        int bottomButtonY = height - bottomMargin;
-        previewButton = ButtonWidget.builder(Text.literal("↻ Update Preview"), button -> {
-            updatePreview();
-        }).dimensions(centerX - previewButtonWidth - 5, bottomButtonY, previewButtonWidth, controlHeight).build();
+
+        int bottomButtonY = height - layout.margin - layout.buttonHeight;
+        int buttonWidth = Math.min(120, layout.contentWidth() / 4);
+
+        previewButton = Buttons.create(Text.literal("\u21BB Update Preview"),
+                centerX - buttonWidth - layout.spacing / 2, bottomButtonY, buttonWidth, layout, button -> updatePreview());
         addDrawableChild(previewButton);
-        
-        sendButton = ButtonWidget.builder(Text.literal("✓ Send Trade"), button -> {
-            sendTrade();
-        }).dimensions(centerX + 5, bottomButtonY, sendButtonWidth, controlHeight).build();
+
+        sendButton = Buttons.create(Text.literal("\u2713 Send Trade"),
+                centerX + layout.spacing / 2, bottomButtonY, buttonWidth, layout, button -> sendTrade());
         addDrawableChild(sendButton);
-        
+
         addOfferingInput();
         addRequestingInput();
-        
+
         updatePreview();
     }
-    
+
     private void addOfferingInput() {
         int index = offeringInputs.size();
-        int y = 100 + index * 30;
-        int panelHalfWidth = Math.min(220, (width - 40) / 2);
-        
-        if (y > 160) return;
-        
+        int y = layout.margin + layout.headerHeight + 30 + index * (layout.controlHeight + layout.spacing);
+        int panelHalfWidth = Math.min(220, layout.contentWidth() / 2);
+
+        if (y > layout.margin + layout.headerHeight + 120) return;
+
         ItemInputGroup group = new ItemInputGroup(this, width / 2 - panelHalfWidth, y, true, index);
         offeringInputs.add(group);
     }
-    
+
     private void addRequestingInput() {
         int index = requestingInputs.size();
-        int y = 240 + index * 30;
-        int panelHalfWidth = Math.min(220, (width - 40) / 2);
-        
-        if (y > 300) return;
-        
+        int y = layout.margin + layout.headerHeight + 170 + index * (layout.controlHeight + layout.spacing);
+        int panelHalfWidth = Math.min(220, layout.contentWidth() / 2);
+
+        if (y > layout.margin + layout.headerHeight + 260) return;
+
         ItemInputGroup group = new ItemInputGroup(this, width / 2 - panelHalfWidth, y, false, index);
         requestingInputs.add(group);
     }
-    
+
     private void removeOfferingInput(int index) {
         if (index < offeringInputs.size()) {
             ItemInputGroup group = offeringInputs.get(index);
@@ -123,7 +111,7 @@ public class TradeComposerScreen extends Screen {
             repositionInputs();
         }
     }
-    
+
     private void removeRequestingInput(int index) {
         if (index < requestingInputs.size()) {
             ItemInputGroup group = requestingInputs.get(index);
@@ -132,30 +120,32 @@ public class TradeComposerScreen extends Screen {
             repositionInputs();
         }
     }
-    
+
     private void repositionInputs() {
-        int panelHalfWidth = Math.min(220, (width - 40) / 2);
+        int panelHalfWidth = Math.min(220, layout.contentWidth() / 2);
         for (int i = 0; i < offeringInputs.size(); i++) {
-            offeringInputs.get(i).setPosition(width / 2 - panelHalfWidth, 100 + i * 30);
+            offeringInputs.get(i).setPosition(width / 2 - panelHalfWidth,
+                    layout.margin + layout.headerHeight + 30 + i * (layout.controlHeight + layout.spacing));
         }
         for (int i = 0; i < requestingInputs.size(); i++) {
-            requestingInputs.get(i).setPosition(width / 2 - panelHalfWidth, 240 + i * 30);
+            requestingInputs.get(i).setPosition(width / 2 - panelHalfWidth,
+                    layout.margin + layout.headerHeight + 170 + i * (layout.controlHeight + layout.spacing));
         }
     }
-    
+
     private void updatePreview() {
         StringBuilder offering = new StringBuilder();
         StringBuilder requesting = new StringBuilder();
-        
+
         for (ItemInputGroup group : offeringInputs) {
             String item = group.getItemName().trim();
             String quantity = group.getQuantity().trim();
-            
+
             if (!item.isEmpty()) {
                 if (offering.length() > 0) offering.append(",");
-                
+
                 String abbr = abbreviateItem(item);
-                
+
                 if (!quantity.isEmpty()) {
                     try {
                         int qty = Integer.parseInt(quantity);
@@ -177,16 +167,16 @@ public class TradeComposerScreen extends Screen {
                 offering.append(abbr);
             }
         }
-        
+
         for (ItemInputGroup group : requestingInputs) {
             String item = group.getItemName().trim();
             String quantity = group.getQuantity().trim();
-            
+
             if (!item.isEmpty()) {
                 if (requesting.length() > 0) requesting.append(",");
-                
+
                 String abbr = abbreviateItem(item);
-                
+
                 if (!quantity.isEmpty()) {
                     try {
                         int qty = Integer.parseInt(quantity);
@@ -208,17 +198,16 @@ public class TradeComposerScreen extends Screen {
                 requesting.append(abbr);
             }
         }
-        
+
         if (offering.length() == 0) offering.append("_");
         if (requesting.length() == 0) requesting.append("_");
-        
+
         previewMessage = offering + " ; " + requesting + ":";
     }
-    
+
     private String abbreviateItem(String item) {
         item = item.toLowerCase().trim();
-        
-        // Handle compound terms (adjective + noun) like "blessed food"
+
         if (item.contains(" ")) {
             String[] parts = item.split("\\s+");
             if (parts.length == 2) {
@@ -226,7 +215,6 @@ public class TradeComposerScreen extends Screen {
                 String noun = abbreviateWord(parts[1]);
                 return adj + "," + noun;
             } else if (parts.length > 2) {
-                // Multiple words - abbreviate each
                 StringBuilder result = new StringBuilder();
                 for (int i = 0; i < parts.length - 1; i++) {
                     result.append(abbreviateWord(parts[i])).append(",");
@@ -235,19 +223,16 @@ public class TradeComposerScreen extends Screen {
                 return result.toString();
             }
         }
-        
-        // Single word - try vocabulary first
+
         String vocab = CarniteVocabulary.abbreviate(item);
         if (!vocab.equals(item)) {
             return vocab;
         }
-        
-        // Fall back to manual abbreviation
+
         return abbreviateWord(item);
     }
-    
+
     private String abbreviateWord(String word) {
-        // Common Minecraft items
         switch (word.toLowerCase()) {
             case "blessed": return "blss";
             case "food": return "fd";
@@ -300,7 +285,6 @@ public class TradeComposerScreen extends Screen {
             case "hoe": return "ho";
             case "shears": return "shrs";
             default:
-                // Remove vowels and shorten
                 String shortened = word.replaceAll("[aeiou]", "");
                 if (shortened.isEmpty()) {
                     shortened = word;
@@ -308,105 +292,112 @@ public class TradeComposerScreen extends Screen {
                 return shortened.substring(0, Math.min(4, shortened.length()));
         }
     }
-    
+
     private void sendTrade() {
         if (client == null) return;
-        
+
         updatePreview();
         client.setScreen(new CarniteComposerScreen(parent, channel, mapId, settings, previewMessage, "yellow"));
     }
-    
+
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    protected void renderPanels(DrawContext context, int mouseX, int mouseY, float delta) {
         int centerX = width / 2;
-        int startY = 40;
-        int margin = 20;
-        int panelHalfWidth = Math.min(220, (width - margin * 2) / 2);
+        int startY = layout.margin + layout.headerHeight;
+        int panelHalfWidth = Math.min(220, layout.contentWidth() / 2);
         int panelWidth = panelHalfWidth * 2;
-        
+
+        // Title
+        context.drawCenteredTextWithShadow(textRenderer, this.title, centerX, layout.margin, TelegraphTheme.TEXT_PRIMARY);
+
+        // Offering panel
         int offeringPanelY = startY;
-        int offeringPanelHeight = 150;
-        context.fill(centerX - panelHalfWidth, offeringPanelY, centerX + panelHalfWidth, offeringPanelY + offeringPanelHeight, PANEL_COLOR);
-        context.drawBorder(centerX - panelHalfWidth, offeringPanelY, panelWidth, offeringPanelHeight, PANEL_BORDER_COLOR);
-        context.fill(centerX - panelHalfWidth, offeringPanelY, centerX + panelHalfWidth, offeringPanelY + 30, HEADER_COLOR);
-        context.drawText(textRenderer, "§6I'm Offering:", centerX - panelHalfWidth + 10, offeringPanelY + 10, 0xFFFFFFFF, false);
-        
-        int requestingPanelY = offeringPanelY + offeringPanelHeight + 10;
-        int requestingPanelHeight = 150;
-        context.fill(centerX - panelHalfWidth, requestingPanelY, centerX + panelHalfWidth, requestingPanelY + requestingPanelHeight, PANEL_COLOR);
-        context.drawBorder(centerX - panelHalfWidth, requestingPanelY, panelWidth, requestingPanelHeight, PANEL_BORDER_COLOR);
-        context.fill(centerX - panelHalfWidth, requestingPanelY, centerX + panelHalfWidth, requestingPanelY + 30, HEADER_COLOR);
-        context.drawText(textRenderer, "§6I'm Requesting:", centerX - panelHalfWidth + 10, requestingPanelY + 10, 0xFFFFFFFF, false);
-        
-        int previewY = requestingPanelY + requestingPanelHeight + 20;
+        int offeringPanelHeight = 130;
+        drawPanel(context, centerX - panelHalfWidth, offeringPanelY, panelWidth, offeringPanelHeight);
+        context.fill(centerX - panelHalfWidth + 1, offeringPanelY + 1,
+                centerX + panelHalfWidth - 1, offeringPanelY + layout.headerHeight, TelegraphTheme.HEADER_BG);
+        context.drawText(textRenderer, "\u00A76I'm Offering:",
+                centerX - panelHalfWidth + layout.padding, offeringPanelY + layout.padding, TelegraphTheme.TEXT_PRIMARY, false);
+
+        // Requesting panel
+        int requestingPanelY = offeringPanelY + offeringPanelHeight + layout.spacing;
+        int requestingPanelHeight = 130;
+        drawPanel(context, centerX - panelHalfWidth, requestingPanelY, panelWidth, requestingPanelHeight);
+        context.fill(centerX - panelHalfWidth + 1, requestingPanelY + 1,
+                centerX + panelHalfWidth - 1, requestingPanelY + layout.headerHeight, TelegraphTheme.HEADER_BG);
+        context.drawText(textRenderer, "\u00A76I'm Requesting:",
+                centerX - panelHalfWidth + layout.padding, requestingPanelY + layout.padding, TelegraphTheme.TEXT_PRIMARY, false);
+
+        // Preview panel
+        int previewY = requestingPanelY + requestingPanelHeight + layout.spacing;
         int previewHeight = 50;
-        context.fill(centerX - panelHalfWidth, previewY, centerX + panelHalfWidth, previewY + previewHeight, PANEL_COLOR);
-        context.drawBorder(centerX - panelHalfWidth, previewY, panelWidth, previewHeight, PANEL_BORDER_COLOR);
-        context.drawText(textRenderer, "§ePreview (Carnite):", centerX - panelHalfWidth + 10, previewY + 10, 0xFFFFFFFF, false);
-        context.drawText(textRenderer, "§7" + previewMessage, centerX - panelHalfWidth + 10, previewY + 25, 0xFFFFFFFF, false);
-        
-        context.drawCenteredTextWithShadow(textRenderer, this.title, centerX, 20, 0xFFFFFFFF);
-        
-        super.render(context, mouseX, mouseY, delta);
+        drawPanel(context, centerX - panelHalfWidth, previewY, panelWidth, previewHeight);
+        context.drawText(textRenderer, "\u00A7ePreview (Carnite):",
+                centerX - panelHalfWidth + layout.padding, previewY + layout.padding, TelegraphTheme.TEXT_PRIMARY, false);
+        context.drawText(textRenderer, "\u00A77" + previewMessage,
+                centerX - panelHalfWidth + layout.padding, previewY + layout.padding + 15, TelegraphTheme.TEXT_PRIMARY, false);
     }
-    
+
     @Override
     public void close() {
         if (client != null) {
             client.setScreen(parent);
         }
     }
-    
+
     private class ItemInputGroup {
         private final TextFieldWidget itemField;
         private final TextFieldWidget quantityField;
         private final ButtonWidget removeButton;
         private final boolean isOffering;
         private final int index;
-        
-        public ItemInputGroup(Screen screen, int x, int y, boolean isOffering, int index) {
+
+        public ItemInputGroup(TradeComposerScreen screen, int x, int y, boolean isOffering, int index) {
             this.isOffering = isOffering;
             this.index = index;
-            
-            itemField = new TextFieldWidget(textRenderer, x, y, 200, 20, Text.literal("Item"));
-            itemField.setPlaceholder(Text.literal("Item name..."));
-            itemField.setMaxLength(32);
+
+            int fieldWidth = Math.min(200, layout.contentWidth() / 2 - 100);
+            int qtyWidth = Math.min(80, layout.contentWidth() / 6);
+
+            itemField = TextFields.input(textRenderer, x, y, fieldWidth, layout, "Item name...", 32);
             itemField.setChangedListener(text -> updatePreview());
             addDrawableChild(itemField);
-            
-            quantityField = new TextFieldWidget(textRenderer, x + 210, y, 80, 20, Text.literal("Quantity"));
-            quantityField.setPlaceholder(Text.literal("Amount..."));
-            quantityField.setMaxLength(6);
+
+            quantityField = TextFields.input(textRenderer, x + fieldWidth + layout.spacing, y, qtyWidth, layout, "Qty...", 6);
             quantityField.setChangedListener(text -> updatePreview());
             addDrawableChild(quantityField);
-            
-            removeButton = ButtonWidget.builder(Text.literal("✗"), button -> {
-                if (isOffering) {
-                    removeOfferingInput(this.index);
-                } else {
-                    removeRequestingInput(this.index);
-                }
-            }).dimensions(x + 300, y, 20, 20).build();
+
+            removeButton = Buttons.small(Text.literal("\u2717"),
+                    x + fieldWidth + qtyWidth + layout.spacing * 2, y, layout, button -> {
+                        if (isOffering) {
+                            removeOfferingInput(this.index);
+                        } else {
+                            removeRequestingInput(this.index);
+                        }
+                    });
             addDrawableChild(removeButton);
         }
-        
+
         public String getItemName() {
             return itemField.getText();
         }
-        
+
         public String getQuantity() {
             return quantityField.getText();
         }
-        
+
         public void setPosition(int x, int y) {
+            int fieldWidth = Math.min(200, layout.contentWidth() / 2 - 100);
+            int qtyWidth = Math.min(80, layout.contentWidth() / 6);
+
             itemField.setX(x);
             itemField.setY(y);
-            quantityField.setX(x + 210);
+            quantityField.setX(x + fieldWidth + layout.spacing);
             quantityField.setY(y);
-            removeButton.setX(x + 300);
+            removeButton.setX(x + fieldWidth + qtyWidth + layout.spacing * 2);
             removeButton.setY(y);
         }
-        
+
         public void remove() {
             TradeComposerScreen.this.remove(itemField);
             TradeComposerScreen.this.remove(quantityField);

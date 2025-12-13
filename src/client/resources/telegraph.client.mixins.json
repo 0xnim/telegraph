@@ -4,6 +4,7 @@
   "package": "xyz.nim.telegraph.mixin.client",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "MapUpdateMixin"
   ],
   "injectors": {
     "defaultRequire": 1

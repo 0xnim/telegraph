@@ -26,11 +26,7 @@ public class DropdownWidget {
     
     private static final int OPTION_HEIGHT = 20;
     private int maxVisibleOptions = 5;
-    private static final int BACKGROUND_COLOR = 0xE0000000;
-    private static final int BORDER_COLOR = 0xFFAAAAAA;
-    private static final int HOVER_COLOR = 0x80FFFFFF;
     private static final int SCROLLBAR_WIDTH = 6;
-    private static final int SCROLLBAR_COLOR = 0xFF8B8B8B;
     
     public static class DropdownOption {
         public final String value;
@@ -108,8 +104,8 @@ public class DropdownWidget {
         int dropdownY = y + height;
         boolean needsScroll = options.size() > maxVisibleOptions;
         
-        context.fill(x, dropdownY, x + width, dropdownY + dropdownHeight, BACKGROUND_COLOR);
-        context.drawBorder(x, dropdownY, width, dropdownHeight, BORDER_COLOR);
+        context.fill(x, dropdownY, x + width, dropdownY + dropdownHeight, TelegraphTheme.PANEL_BG);
+        context.drawBorder(x, dropdownY, width, dropdownHeight, TelegraphTheme.PANEL_BORDER);
         
         int maxScroll = Math.max(0, options.size() - maxVisibleOptions);
         scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll));
@@ -123,12 +119,12 @@ public class DropdownWidget {
                               mouseY >= optionY && mouseY < optionY + OPTION_HEIGHT;
             
             if (isHovered) {
-                context.fill(x + 1, optionY + 1, x + width - (needsScroll ? SCROLLBAR_WIDTH : 0) - 1, 
-                           optionY + OPTION_HEIGHT - 1, HOVER_COLOR);
+                context.fill(x + 1, optionY + 1, x + width - (needsScroll ? SCROLLBAR_WIDTH : 0) - 1,
+                           optionY + OPTION_HEIGHT - 1, TelegraphTheme.HOVER);
             }
             
             DropdownOption option = options.get(optionIndex);
-            int textColor = optionIndex == selectedIndex ? 0xFFFFFF00 : 0xFFFFFFFF;
+            int textColor = optionIndex == selectedIndex ? TelegraphTheme.SELECTED : TelegraphTheme.TEXT_PRIMARY;
             context.drawText(client.textRenderer, option.label, x + 5, optionY + 6, textColor, false);
         }
         
@@ -137,8 +133,8 @@ public class DropdownWidget {
             int scrollbarHeight = Math.max(20, (visibleCount * dropdownHeight) / options.size());
             int scrollbarY = dropdownY + (int)((float)scrollOffset / maxScroll * (dropdownHeight - scrollbarHeight));
             
-            context.fill(scrollbarX, dropdownY, scrollbarX + SCROLLBAR_WIDTH, dropdownY + dropdownHeight, 0xFF2B2B2B);
-            context.fill(scrollbarX, scrollbarY, scrollbarX + SCROLLBAR_WIDTH, scrollbarY + scrollbarHeight, SCROLLBAR_COLOR);
+            context.fill(scrollbarX, dropdownY, scrollbarX + SCROLLBAR_WIDTH, dropdownY + dropdownHeight, TelegraphTheme.HEADER_BG);
+            context.fill(scrollbarX, scrollbarY, scrollbarX + SCROLLBAR_WIDTH, scrollbarY + scrollbarHeight, TelegraphTheme.TEXT_MUTED);
         }
     }
     

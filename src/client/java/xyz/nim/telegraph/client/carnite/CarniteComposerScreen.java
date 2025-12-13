@@ -8,19 +8,22 @@ import net.minecraft.text.Text;
 import xyz.nim.telegraph.client.ChannelSettings;
 import xyz.nim.telegraph.client.TelegraphChannel;
 import xyz.nim.telegraph.client.ui.DropdownWidget;
-import xyz.nim.telegraph.client.ui.SimpleLayout;
-import xyz.nim.telegraph.client.ui.SimpleLayout.Box;
+import xyz.nim.telegraph.client.ui.KeyboardConstants;
+import xyz.nim.telegraph.client.ui.TelegraphScreen;
+import xyz.nim.telegraph.client.ui.TelegraphTheme;
+import xyz.nim.telegraph.client.ui.components.Buttons;
+import xyz.nim.telegraph.client.ui.components.TextFields;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class CarniteComposerScreen extends Screen {
+public class CarniteComposerScreen extends TelegraphScreen {
     private final Screen parent;
     private final TelegraphChannel channel;
     private final int mapId;
     private final ChannelSettings settings;
-    
+
     private TextFieldWidget messageField;
     private ButtonWidget doneButton;
     private ButtonWidget copyButton;
@@ -31,7 +34,7 @@ public class CarniteComposerScreen extends Screen {
     private DropdownWidget colorDropdown;
     private DropdownWidget templateDropdown;
     private List<ButtonWidget> symbolButtons = new ArrayList<>();
-    
+
     private static final String[][] BANNER_COLORS = {
         {"white", "White (Present)"},
         {"light_gray", "Lt.Gray (Past)"},
@@ -44,7 +47,7 @@ public class CarniteComposerScreen extends Screen {
         {"yellow", "Yellow (Trade)"},
         {"purple", "Purple (Goal)"}
     };
-    
+
     private static final String[][] TEMPLATES = {
         {"~rd| ; ", "Raiders at my civ", "red"},
         {".dmd ; _:", "Trade: diamond for?", "yellow"},
@@ -55,32 +58,30 @@ public class CarniteComposerScreen extends Screen {
         {"bld| CN:", "Request: Builder to CN", "light_blue"},
         {"lib|5 _:", "Question: lvl 5 librarian?", "blue"}
     };
-    
-    private int selectedColorIndex = 0;
-    private int selectedTemplateIndex = 0;
-    
+
     private String selectedBannerColor = "white";
     private String initialMessage = null;
     private CarniteValidator.ValidationResult validationResult = null;
     private CarniteExplainer.ExplanationResult explanationResult = null;
-    private boolean showHelp = false;
+    private boolean showHelpSidebar = false;
     private ViewMode currentMode = ViewMode.INFO;
     private int scrollOffset = 0;
     private int hoveredPartIndex = -1;
-    
+    private int hoveredSymbolIndex = -1;
+
     private int tabY;
     private int panelY;
     private int panelHeight;
     private int infoPreviewY;
     private int symbolGridY;
     private int bottomButtonY;
-    
+
     private enum ViewMode {
-        INFO,     // Default - civs, validation, info
-        LEARN,    // Interactive learning
-        EXPAND    // Translation
+        INFO,
+        LEARN,
+        EXPAND
     }
-    
+
     public CarniteComposerScreen(Screen parent, TelegraphChannel channel, int mapId, ChannelSettings settings) {
         super(Text.literal("Carnite Message Composer"));
         this.parent = parent;
@@ -88,7 +89,7 @@ public class CarniteComposerScreen extends Screen {
         this.mapId = mapId;
         this.settings = settings;
     }
-    
+
     public CarniteComposerScreen(Screen parent, TelegraphChannel channel, int mapId, ChannelSettings settings, String initialMessage, String bannerColor) {
         super(Text.literal("Carnite Message Composer"));
         this.parent = parent;
@@ -98,22 +99,25 @@ public class CarniteComposerScreen extends Screen {
         this.initialMessage = initialMessage;
         this.selectedBannerColor = bannerColor != null ? bannerColor : "white";
     }
-    
+
     @Override
     protected void init() {
         super.init();
-        
-        int margin = 20;
-        int rightPanelWidth = Math.min(180, width / 4);
-        int leftPanelWidth = width - margin - rightPanelWidth - margin - 10;
-        
-        // Create layout for left panel
-        var leftPanel = SimpleLayout.vstack(margin, 40, leftPanelWidth, 5);
-        
-        // Message input
-        Box inputBox = leftPanel.add(20);
-        messageField = new TextFieldWidget(textRenderer, inputBox.x, inputBox.y, inputBox.width, inputBox.height, Text.literal("Message"));
-        messageField.setMaxLength(64);
+        symbolButtons.clear();
+
+        int rightPanelWidth = Math.min(180, layout.contentWidth() / 4);
+        int leftPanelWidth = layout.contentWidth() - rightPanelWidth - layout.spacing;
+
+        this.bottomButtonY = height - layout.margin - layout.buttonHeight;
+        this.infoPreviewY = this.bottomButtonY - 15;
+
+        int topSectionHeight = layout.margin + layout.headerHeight + layout.controlHeight + layout.spacing + 25;
+        this.tabY = topSectionHeight;
+        this.panelY = this.tabY + layout.buttonHeight + layout.spacing;
+        this.panelHeight = Math.max(60, this.infoPreviewY - this.panelY - 25);
+
+        int inputY = layout.margin + layout.headerHeight;
+        messageField = TextFields.message(textRenderer, layout.margin, inputY, leftPanelWidth, layout, 64);
         messageField.setPlaceholder(Text.literal("Type Carnite message..."));
         if (initialMessage != null) {
             messageField.setText(initialMessage);
@@ -125,91 +129,46 @@ public class CarniteComposerScreen extends Screen {
             }
         });
         addDrawableChild(messageField);
-        
+
         if (initialMessage != null) {
             validationResult = CarniteValidator.validate(initialMessage, selectedBannerColor);
             explanationResult = CarniteExplainer.explainMessage(initialMessage, selectedBannerColor);
         }
-        
-        // Only show symbols if enough vertical space (need ~350px minimum)
-        if (height >= 350) {
-            leftPanel.addGap(10);
-            
-            // Symbol buttons using grid - limit to 3 rows max
-            Map<String, String> symbols = CarniteVocabulary.getSymbols();
-            int symbolsPerRow = Math.max(1, leftPanelWidth / 35);
-            int maxSymbolRows = height >= 500 ? 3 : 2;
-            this.symbolGridY = leftPanel.getCurrentY();
-            var symbolGrid = SimpleLayout.grid(margin, this.symbolGridY + 4, symbolsPerRow, 30, 18, 5, 5);
-            
-            int count = 0;
-            for (Map.Entry<String, String> entry : symbols.entrySet()) {
-                if (count >= symbolsPerRow * maxSymbolRows) break;
-                
-                String symbol = entry.getKey();
-                Box symbolBox = symbolGrid.next();
-                ButtonWidget btn = ButtonWidget.builder(Text.literal(symbol), button -> {
-                    if (messageField != null) {
-                        String current = messageField.getText();
-                        messageField.setText(current + symbol);
-                    }
-                }).dimensions(symbolBox.x, symbolBox.y, symbolBox.width, symbolBox.height).build();
-                
-                addDrawableChild(btn);
-                symbolButtons.add(btn);
-                count++;
-            }
-            
-            int symbolGridHeight = Math.min(symbolGrid.getHeight(), maxSymbolRows * 18 + (maxSymbolRows - 1) * 5);
-            leftPanel.add(symbolGridHeight);
-            leftPanel.addGap(5);
+
+        this.symbolGridY = inputY + layout.controlHeight + layout.spacing;
+        Map<String, String> symbols = CarniteVocabulary.getSymbols();
+        int symbolBtnWidth = 28;
+        int symbolSpacing = 3;
+        int symbolX = layout.margin;
+        int maxSymbols = Math.min(symbols.size(), (leftPanelWidth + symbolSpacing) / (symbolBtnWidth + symbolSpacing));
+
+        int count = 0;
+        for (Map.Entry<String, String> entry : symbols.entrySet()) {
+            if (count >= maxSymbols) break;
+
+            String symbol = entry.getKey();
+            ButtonWidget btn = ButtonWidget.builder(Text.literal(symbol), button -> {
+                if (messageField != null) {
+                    String current = messageField.getText();
+                    messageField.setText(current + symbol);
+                }
+            }).dimensions(symbolX, symbolGridY, symbolBtnWidth, 18).build();
+
+            addDrawableChild(btn);
+            symbolButtons.add(btn);
+            symbolX += symbolBtnWidth + symbolSpacing;
+            count++;
         }
-        
-        // Template dropdown - only show if enough space
-        if (height >= 400) {
-            Box templateBox = leftPanel.add(20);
-            
-            List<DropdownWidget.DropdownOption> templateOptions = new ArrayList<>();
-            for (String[] template : TEMPLATES) {
-                templateOptions.add(new DropdownWidget.DropdownOption(template[0], template[1]));
-            }
-            
-            templateDropdown = new DropdownWidget(client, templateBox.x, templateBox.y, templateBox.width, templateBox.height, 
-                templateOptions, selectedTemplate -> {
-                    if (messageField != null) {
-                        messageField.setText(selectedTemplate);
-                    }
-                    
-                    for (String[] template : TEMPLATES) {
-                        if (template[0].equals(selectedTemplate)) {
-                            String bannerColor = template[2];
-                            if (bannerColor != null) {
-                                selectedBannerColor = bannerColor;
-                                colorDropdown.setSelected(bannerColor);
-                            }
-                            break;
-                        }
-                    }
-                    
-                    validationResult = CarniteValidator.validate(selectedTemplate, selectedBannerColor);
-                    explanationResult = CarniteExplainer.explainMessage(selectedTemplate, selectedBannerColor);
-                });
-            addDrawableChild(templateDropdown.getButton());
-        }
-        
-        // Right panel layout
-        int rightPanelX = width - margin - rightPanelWidth;
-        var rightPanel = SimpleLayout.vstack(rightPanelX, 70, rightPanelWidth, 10);
-        
-        // Banner color dropdown (right panel)
-        Box colorBox = rightPanel.add(20);
-        
+
+        int rightPanelX = width - layout.margin - rightPanelWidth;
+        int colorDropdownY = layout.margin + layout.headerHeight;
+
         List<DropdownWidget.DropdownOption> colorOptions = new ArrayList<>();
         for (String[] color : BANNER_COLORS) {
             colorOptions.add(new DropdownWidget.DropdownOption(color[0], color[1]));
         }
-        
-        colorDropdown = new DropdownWidget(client, colorBox.x, colorBox.y, colorBox.width, colorBox.height,
+
+        colorDropdown = new DropdownWidget(client, rightPanelX, colorDropdownY, rightPanelWidth, layout.buttonHeight,
             colorOptions, selectedColor -> {
                 selectedBannerColor = selectedColor;
                 validationResult = CarniteValidator.validate(messageField.getText(), selectedBannerColor);
@@ -217,118 +176,145 @@ public class CarniteComposerScreen extends Screen {
             });
         colorDropdown.setSelected(selectedBannerColor);
         addDrawableChild(colorDropdown.getButton());
-        
-        // Calculate positions from bottom up
-        this.bottomButtonY = height - 30;
-        this.infoPreviewY = this.bottomButtonY - 30;
-        
-        // Calculate tab position - start after left panel content with some gap
-        leftPanel.addGap(10);
-        this.tabY = leftPanel.getCurrentY();
-        this.panelY = this.tabY + 25;
-        this.panelHeight = this.infoPreviewY - this.panelY - 10;
-        
-        // Tab buttons using HStack
-        var tabs = SimpleLayout.hstack(margin, this.tabY, 20, 5);
-        
-        Box infoTab = tabs.add(80);
-        infoTabButton = ButtonWidget.builder(Text.literal("Info"), button -> {
-            currentMode = ViewMode.INFO;
-            updateTabButtons();
-        }).dimensions(infoTab.x, infoTab.y, infoTab.width, infoTab.height).build();
-        addDrawableChild(infoTabButton);
-        
-        Box learnTab = tabs.add(80);
-        learnTabButton = ButtonWidget.builder(Text.literal("Learn"), button -> {
-            currentMode = ViewMode.LEARN;
-            explanationResult = CarniteExplainer.explainMessage(messageField.getText(), selectedBannerColor);
-            updateTabButtons();
-        }).dimensions(learnTab.x, learnTab.y, learnTab.width, learnTab.height).build();
-        addDrawableChild(learnTabButton);
-        
-        Box expandTab = tabs.add(80);
-        expandTabButton = ButtonWidget.builder(Text.literal("Expand"), button -> {
-            currentMode = ViewMode.EXPAND;
-            explanationResult = CarniteExplainer.explainMessage(messageField.getText(), selectedBannerColor);
-            updateTabButtons();
-        }).dimensions(expandTab.x, expandTab.y, expandTab.width, expandTab.height).build();
-        addDrawableChild(expandTabButton);
-        
-        // Bottom buttons using HStack
-        var bottomButtons = SimpleLayout.hstack(margin, this.bottomButtonY, 20, 5);
-        
-        Box helpBox = bottomButtons.add(Math.min(70, width / 12));
-        helpButton = ButtonWidget.builder(Text.literal("Help"), button -> {
-            showHelp = !showHelp;
-        }).dimensions(helpBox.x, helpBox.y, helpBox.width, helpBox.height).build();
-        addDrawableChild(helpButton);
-        
-        Box copyBox = bottomButtons.add(Math.min(70, width / 12));
-        copyButton = ButtonWidget.builder(Text.literal("Copy"), button -> {
-            String message = getFormattedMessage();
-            if (client != null) {
-                client.keyboard.setClipboard(message);
-                if (client.player != null) {
-                    client.player.sendMessage(Text.literal("§aCopied: " + message), false);
+
+        int templateDropdownY = colorDropdownY + layout.buttonHeight + layout.spacing + 12;
+
+        List<DropdownWidget.DropdownOption> templateOptions = new ArrayList<>();
+        for (String[] template : TEMPLATES) {
+            templateOptions.add(new DropdownWidget.DropdownOption(template[0], template[1]));
+        }
+
+        templateDropdown = new DropdownWidget(client, rightPanelX, templateDropdownY, rightPanelWidth, layout.buttonHeight,
+            templateOptions, selectedTemplate -> {
+                if (messageField != null) {
+                    messageField.setText(selectedTemplate);
                 }
-            }
-        }).dimensions(copyBox.x, copyBox.y, copyBox.width, copyBox.height).build();
+
+                for (String[] template : TEMPLATES) {
+                    if (template[0].equals(selectedTemplate)) {
+                        String bannerColor = template[2];
+                        if (bannerColor != null) {
+                            selectedBannerColor = bannerColor;
+                            colorDropdown.setSelected(bannerColor);
+                        }
+                        break;
+                    }
+                }
+
+                validationResult = CarniteValidator.validate(selectedTemplate, selectedBannerColor);
+                explanationResult = CarniteExplainer.explainMessage(selectedTemplate, selectedBannerColor);
+            });
+        addDrawableChild(templateDropdown.getButton());
+
+        int tabBtnWidth = Math.min(70, (leftPanelWidth - layout.spacing * 2) / 3);
+        infoTabButton = Buttons.create(Text.literal("Info"),
+            layout.margin, this.tabY, tabBtnWidth, layout, button -> {
+                currentMode = ViewMode.INFO;
+                updateTabButtons();
+            });
+        addDrawableChild(infoTabButton);
+
+        learnTabButton = Buttons.create(Text.literal("Learn"),
+            layout.margin + tabBtnWidth + layout.spacing, this.tabY, tabBtnWidth, layout, button -> {
+                currentMode = ViewMode.LEARN;
+                explanationResult = CarniteExplainer.explainMessage(messageField.getText(), selectedBannerColor);
+                updateTabButtons();
+            });
+        addDrawableChild(learnTabButton);
+
+        expandTabButton = Buttons.create(Text.literal("Expand"),
+            layout.margin + (tabBtnWidth + layout.spacing) * 2, this.tabY, tabBtnWidth, layout, button -> {
+                currentMode = ViewMode.EXPAND;
+                explanationResult = CarniteExplainer.explainMessage(messageField.getText(), selectedBannerColor);
+                updateTabButtons();
+            });
+        addDrawableChild(expandTabButton);
+
+        helpButton = Buttons.create(Text.literal("?"),
+            layout.margin, this.bottomButtonY, 30, layout, button -> {
+                showHelpSidebar = !showHelpSidebar;
+            });
+        addDrawableChild(helpButton);
+
+        copyButton = Buttons.create(Text.literal("Copy"),
+            layout.margin + 35, this.bottomButtonY, 60, layout, button -> {
+                copyMessageToClipboard();
+            });
         addDrawableChild(copyButton);
-        
-        // Done button on right side
-        int doneButtonWidth = Math.min(80, width / 10);
-        doneButton = ButtonWidget.builder(Text.literal("Done"), button -> {
-            if (client != null) {
-                client.setScreen(parent);
-            }
-        }).dimensions(width - margin - doneButtonWidth, this.bottomButtonY, doneButtonWidth, 20).build();
+
+        doneButton = Buttons.done(width - layout.margin - layout.buttonWidth, this.bottomButtonY, layout, button -> close());
         addDrawableChild(doneButton);
-        
+
         updateTabButtons();
     }
-    
+
     private void updateTabButtons() {
         if (infoTabButton != null) infoTabButton.active = currentMode != ViewMode.INFO;
         if (learnTabButton != null) learnTabButton.active = currentMode != ViewMode.LEARN;
         if (expandTabButton != null) expandTabButton.active = currentMode != ViewMode.EXPAND;
     }
-    
 
-    
     private String getFormattedMessage() {
         String message = messageField != null ? messageField.getText() : "";
         return "[" + selectedBannerColor.toUpperCase() + " BANNER] " + message;
     }
-    
+
+    private void copyMessageToClipboard() {
+        String message = getFormattedMessage();
+        if (client != null) {
+            client.keyboard.setClipboard(message);
+            toastManager.success("Copied to clipboard!");
+        }
+    }
+
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        super.render(context, mouseX, mouseY, delta);
-        
-        int margin = 20;
-        int rightPanelWidth = Math.min(180, width / 4);
-        int rightPanelX = width - margin - rightPanelWidth;
-        
-        // Title
-        context.drawText(textRenderer, "Carnite Message Composer", margin, 20, 0xFFFFFFFF, false);
-        context.drawText(textRenderer, "Channel: " + channel.getDisplayName(mapId), margin, 30, 0xFFAAAAAA, false);
-        
-        // Symbol helper section
-        if (symbolGridY > 0) {
-            context.drawText(textRenderer, "Quick Symbols:", margin, symbolGridY - 6, 0xFFFFFFFF, false);
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == KeyboardConstants.KEY_ESCAPE) {
+            if (showHelpSidebar) {
+                showHelpSidebar = false;
+                return true;
+            }
         }
-        
-        // Color panel title
-        context.drawText(textRenderer, "Banner Color:", rightPanelX, 55, 0xFFFFFFFF, false);
-        
-        // Message stats
-        if (messageField != null && !messageField.getText().isEmpty()) {
-            int length = messageField.getText().length();
-            int color = length > 38 ? 0xFFFF0000 : length > 32 ? 0xFFFFAA00 : 0xFF55FF55;
-            String stats = length + " chars" + (length > 32 ? " (readability warning)" : "");
-            context.drawText(textRenderer, stats, margin, height - 80, color, false);
+
+        if (KeyboardConstants.hasControl(modifiers) && KeyboardConstants.isEnter(keyCode)) {
+            copyMessageToClipboard();
+            return true;
         }
-        
-        // Render current tab content
+
+        if (!messageField.isFocused()) {
+            if (keyCode == KeyboardConstants.KEY_1) {
+                currentMode = ViewMode.INFO;
+                updateTabButtons();
+                return true;
+            }
+            if (keyCode == KeyboardConstants.KEY_2) {
+                currentMode = ViewMode.LEARN;
+                explanationResult = CarniteExplainer.explainMessage(messageField.getText(), selectedBannerColor);
+                updateTabButtons();
+                return true;
+            }
+            if (keyCode == KeyboardConstants.KEY_3) {
+                currentMode = ViewMode.EXPAND;
+                explanationResult = CarniteExplainer.explainMessage(messageField.getText(), selectedBannerColor);
+                updateTabButtons();
+                return true;
+            }
+        }
+
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    protected void renderPanels(DrawContext context, int mouseX, int mouseY, float delta) {
+        int rightPanelWidth = Math.min(180, layout.contentWidth() / 4);
+        int rightPanelX = width - layout.margin - rightPanelWidth;
+
+        context.drawText(textRenderer, "Carnite Message Composer", layout.margin, layout.margin, TelegraphTheme.TEXT_PRIMARY, false);
+        context.drawText(textRenderer, "Channel: " + channel.getDisplayName(mapId), layout.margin, layout.margin + 10, TelegraphTheme.TEXT_SECONDARY, false);
+
+        context.drawText(textRenderer, "Banner Color:", rightPanelX, layout.margin + layout.headerHeight - 12, TelegraphTheme.TEXT_SECONDARY, false);
+        context.drawText(textRenderer, "Templates:", rightPanelX, layout.margin + layout.headerHeight + layout.buttonHeight + layout.spacing, TelegraphTheme.TEXT_SECONDARY, false);
+
         switch (currentMode) {
             case INFO -> renderInfoTab(context);
             case LEARN -> {
@@ -342,305 +328,314 @@ public class CarniteComposerScreen extends Screen {
                 }
             }
         }
-        
-        // Help overlay
-        if (showHelp) {
-            renderHelpOverlay(context);
+    }
+
+    @Override
+    protected void renderOverlays(DrawContext context, int mouseX, int mouseY, float delta) {
+        if (messageField != null) {
+            int length = messageField.getText().length();
+            int statsY = panelY + panelHeight + 5;
+
+            int barWidth = 150;
+            int barHeight = 8;
+            int barX = layout.margin;
+
+            context.fill(barX, statsY, barX + barWidth, statsY + barHeight, 0xFF333333);
+
+            int progressWidth = Math.min(barWidth, (int) (barWidth * length / 38.0));
+            int barColor = length > 38 ? TelegraphTheme.ERROR : length > 32 ? TelegraphTheme.WARNING : TelegraphTheme.SUCCESS;
+            if (progressWidth > 0) {
+                context.fill(barX, statsY, barX + progressWidth, statsY + barHeight, barColor);
+            }
+
+            int greenMark = (int) (barWidth * 32 / 38.0);
+            context.fill(barX + greenMark - 1, statsY - 2, barX + greenMark + 1, statsY + barHeight + 2, TelegraphTheme.SELECTED);
+
+            drawBorder(context, barX, statsY, barWidth, barHeight, TelegraphTheme.TEXT_SECONDARY);
+
+            String stats = length + "/38" + (length > 32 ? " !" : "");
+            int textColor = length > 38 ? TelegraphTheme.ERROR : length > 32 ? TelegraphTheme.WARNING : TelegraphTheme.SUCCESS;
+            context.drawText(textRenderer, stats, barX + barWidth + 10, statsY, textColor, false);
         }
-        
-        // Preview
-        context.drawText(textRenderer, "Preview:", margin, infoPreviewY, 0xFFAAAAAA, false);
+
+        if (showHelpSidebar) {
+            renderHelpSidebar(context);
+        }
+
+        renderSymbolTooltips(context, mouseX, mouseY);
+
+        context.drawText(textRenderer, "Preview:", layout.margin, infoPreviewY, TelegraphTheme.TEXT_SECONDARY, false);
         String preview = getFormattedMessage();
-        context.drawText(textRenderer, preview, margin + 60, infoPreviewY, 0xFFFFFF00, false);
-        
-        // Render dropdowns last so they appear on top (only if they exist)
+        context.drawText(textRenderer, preview, layout.margin + 60, infoPreviewY, TelegraphTheme.SELECTED, false);
+
         if (templateDropdown != null) {
             templateDropdown.render(context, mouseX, mouseY, delta);
         }
         if (colorDropdown != null) {
             colorDropdown.render(context, mouseX, mouseY, delta);
         }
-        
-        // Show warning if screen too small
+
         if (height < 350) {
-            context.drawCenteredTextWithShadow(textRenderer, "§cScreen too small - some features hidden", 
-                width / 2, height / 2, 0xFFFF5555);
+            context.drawCenteredTextWithShadow(textRenderer, "Screen too small - some features hidden",
+                width / 2, height / 2, TelegraphTheme.ERROR);
         }
     }
-    
+
     private void renderInfoTab(DrawContext context) {
-        int margin = 20;
-        int rightPanelWidth = Math.min(180, width / 4);
-        int panelWidth = width - margin - rightPanelWidth - margin - 10;
-        
-        // Background panel
-        context.fill(margin, panelY, margin + panelWidth, panelY + panelHeight, 0xE0000033);
-        context.drawBorder(margin, panelY, panelWidth, panelHeight, 0xFF00AAFF);
-        
+        int rightPanelWidth = Math.min(180, layout.contentWidth() / 4);
+        int panelWidth = layout.contentWidth() - rightPanelWidth - layout.spacing;
+
+        context.fill(layout.margin, panelY, layout.margin + panelWidth, panelY + panelHeight, 0xE0000033);
+        drawBorder(context, layout.margin, panelY, panelWidth, panelHeight, TelegraphTheme.INFO);
+
         int contentY = panelY + 10;
-        int contentX = margin + 10;
-        
-        context.drawText(textRenderer, "§b§lMESSAGE INFO", contentX, contentY, 0xFFFFFFFF, false);
+        int contentX = layout.margin + 10;
+
+        context.drawText(textRenderer, "MESSAGE INFO", contentX, contentY, TelegraphTheme.INFO, false);
         contentY += 20;
-        
+
         String message = messageField != null ? messageField.getText() : "";
-        
+
         if (message.isEmpty()) {
-            context.drawText(textRenderer, "§7Type a message to see info...", contentX, contentY, 0xFFAAAAAA, false);
+            context.drawText(textRenderer, "Type a message to see info...", contentX, contentY, TelegraphTheme.TEXT_MUTED, false);
             return;
         }
-        
-        // Found Civilizations
+
         List<String> civs = CarniteParser.extractCivAbbreviations(message);
         if (!civs.isEmpty()) {
-            context.drawText(textRenderer, "§e📍 Found Civilizations:", contentX, contentY, 0xFFFFFFFF, false);
+            context.drawText(textRenderer, "Found Civilizations:", contentX, contentY, TelegraphTheme.SELECTED, false);
             contentY += 15;
-            
+
             for (String civ : civs) {
-                context.drawText(textRenderer, "  §b• " + civ, contentX + 10, contentY, 0xFFFFFFFF, false);
+                context.drawText(textRenderer, "  - " + civ, contentX + 10, contentY, TelegraphTheme.INFO, false);
                 contentY += 12;
             }
             contentY += 10;
         }
-        
-        // Trade detection
+
         if (CarniteParser.isTradeMessage(message)) {
-            context.drawText(textRenderer, "§e💰 Trade Offer Detected", contentX, contentY, 0xFFFFFFFF, false);
+            context.drawText(textRenderer, "Trade Offer Detected", contentX, contentY, TelegraphTheme.SELECTED, false);
             contentY += 15;
-            
+
             CarniteParser.TradeOffer trade = CarniteParser.parseTradeOffer(message);
             if (trade != null) {
-                context.drawText(textRenderer, "  §7Offering: §f" + trade.offering(), contentX + 10, contentY, 0xFFFFFFFF, false);
+                context.drawText(textRenderer, "  Offering: " + trade.offering(), contentX + 10, contentY, TelegraphTheme.TEXT_PRIMARY, false);
                 contentY += 12;
-                context.drawText(textRenderer, "  §7Requesting: §f" + trade.requesting(), contentX + 10, contentY, 0xFFFFFFFF, false);
+                context.drawText(textRenderer, "  Requesting: " + trade.requesting(), contentX + 10, contentY, TelegraphTheme.TEXT_PRIMARY, false);
                 contentY += 12;
             }
-            
+
             if (!selectedBannerColor.contains("yellow")) {
                 contentY += 5;
-                context.drawText(textRenderer, "  §6⚠ Tip: Use YELLOW banner for trades", contentX + 10, contentY, 0xFFFFAA00, false);
+                context.drawText(textRenderer, "  Tip: Use YELLOW banner for trades", contentX + 10, contentY, TelegraphTheme.WARNING, false);
                 contentY += 12;
             }
             contentY += 10;
         }
-        
-        // Validation Results
+
         if (validationResult != null) {
-            context.drawText(textRenderer, "§e✓ Validation:", contentX, contentY, 0xFFFFFFFF, false);
+            context.drawText(textRenderer, "Validation:", contentX, contentY, TelegraphTheme.SELECTED, false);
             contentY += 15;
-            
+
             if (validationResult.isValid() && validationResult.issues().isEmpty()) {
-                context.drawText(textRenderer, "  §a✓ Message looks good!", contentX + 10, contentY, 0xFF55FF55, false);
+                context.drawText(textRenderer, "  Message looks good!", contentX + 10, contentY, TelegraphTheme.SUCCESS, false);
                 contentY += 12;
             }
-            
+
             for (CarniteValidator.ValidationIssue issue : validationResult.issues()) {
                 if (contentY > panelY + panelHeight - 20) break;
-                
+
                 int issueColor = switch (issue.severity()) {
-                    case ERROR -> 0xFFFF0000;
-                    case WARNING -> 0xFFFFAA00;
-                    case INFO -> 0xFF00AAFF;
+                    case ERROR -> TelegraphTheme.ERROR;
+                    case WARNING -> TelegraphTheme.WARNING;
+                    case INFO -> TelegraphTheme.INFO;
                 };
-                
+
                 String prefix = switch (issue.severity()) {
-                    case ERROR -> "  ⚠ ";
-                    case WARNING -> "  ⚠ ";
-                    case INFO -> "  ℹ ";
+                    case ERROR -> "  ! ";
+                    case WARNING -> "  ! ";
+                    case INFO -> "  i ";
                 };
-                
+
                 List<String> wrapped = wrapText(issue.message(), panelWidth - 40);
                 for (String line : wrapped) {
                     if (contentY > panelY + panelHeight - 20) break;
                     context.drawText(textRenderer, prefix + line, contentX + 10, contentY, issueColor, false);
                     contentY += 11;
-                    prefix = "    "; // Indent continuation lines
+                    prefix = "    ";
                 }
             }
-            
+
             if (!validationResult.suggestions().isEmpty() && contentY < panelY + panelHeight - 40) {
                 contentY += 10;
-                context.drawText(textRenderer, "§e💡 Suggestions:", contentX, contentY, 0xFFFFFFFF, false);
+                context.drawText(textRenderer, "Suggestions:", contentX, contentY, TelegraphTheme.SELECTED, false);
                 contentY += 15;
-                
+
                 for (CarniteValidator.ValidationSuggestion suggestion : validationResult.suggestions()) {
                     if (contentY > panelY + panelHeight - 20) break;
-                    
+
                     List<String> wrapped = wrapText(suggestion.suggestion(), panelWidth - 40);
                     for (String line : wrapped) {
                         if (contentY > panelY + panelHeight - 20) break;
-                        context.drawText(textRenderer, "  • " + line, contentX + 10, contentY, 0xFF88FF88, false);
+                        context.drawText(textRenderer, "  - " + line, contentX + 10, contentY, TelegraphTheme.SUCCESS, false);
                         contentY += 11;
                     }
                 }
             }
         }
-        
-        // Quick stats at bottom
+
         int statsY = panelY + panelHeight - 25;
-        context.drawText(textRenderer, "§8Tense: " + CarniteParser.getTenseFromColor(selectedBannerColor), 
-                        contentX, statsY, 0xFF888888, false);
-        
+        context.drawText(textRenderer, "Tense: " + CarniteParser.getTenseFromColor(selectedBannerColor),
+                        contentX, statsY, TelegraphTheme.TEXT_MUTED, false);
+
         if (explanationResult != null) {
-            String typeText = "Type: " + (explanationResult.structure().contains("QUESTION") ? "Question" : 
+            String typeText = "Type: " + (explanationResult.structure().contains("QUESTION") ? "Question" :
                                         explanationResult.structure().contains("RESPONSE") ? "Response" :
                                         explanationResult.structure().contains("TRADE") ? "Trade" : "Statement");
-            context.drawText(textRenderer, "§8" + typeText, 
-                           contentX + 200, statsY, 0xFF888888, false);
+            context.drawText(textRenderer, typeText,
+                           contentX + 200, statsY, TelegraphTheme.TEXT_MUTED, false);
         }
     }
-    
+
     private void renderLearningMode(DrawContext context, int mouseX, int mouseY) {
-        int margin = 20;
-        int rightPanelWidth = Math.min(180, width / 4);
-        int panelWidth = width - margin - rightPanelWidth - margin - 10;
-        
-        // Background panel
-        context.fill(margin, panelY, margin + panelWidth, panelY + panelHeight, 0xE0000000);
-        context.drawBorder(margin, panelY, panelWidth, panelHeight, 0xFF00FF00);
-        
+        int rightPanelWidth = Math.min(180, layout.contentWidth() / 4);
+        int panelWidth = layout.contentWidth() - rightPanelWidth - layout.spacing;
+
+        context.fill(layout.margin, panelY, layout.margin + panelWidth, panelY + panelHeight, 0xE0000000);
+        drawBorder(context, layout.margin, panelY, panelWidth, panelHeight, TelegraphTheme.SUCCESS);
+
         int contentY = panelY + 5;
-        int contentX = margin + 5;
-        
-        context.drawText(textRenderer, "§a§lLEARNING MODE - Hover over any part", contentX, contentY, 0xFFFFFFFF, false);
+        int contentX = layout.margin + 5;
+
+        context.drawText(textRenderer, "LEARNING MODE - Hover over any part", contentX, contentY, TelegraphTheme.SUCCESS, false);
         contentY += 15;
-        
-        // Draw message with interactive parts
-        String message = messageField.getText();
+
         int drawX = contentX;
-        
+
         hoveredPartIndex = -1;
-        
+
         for (int i = 0; i < explanationResult.parts().size(); i++) {
             CarniteExplainer.MessagePart part = explanationResult.parts().get(i);
-            
+
             int textWidth = textRenderer.getWidth(part.text());
             int color = getColorForPartType(part.type());
-            
-            // Check if mouse is hovering
-            boolean hovered = mouseX >= drawX && mouseX <= drawX + textWidth && 
+
+            boolean hovered = mouseX >= drawX && mouseX <= drawX + textWidth &&
                              mouseY >= contentY && mouseY <= contentY + 10;
-            
+
             if (hovered) {
                 hoveredPartIndex = i;
-                // Highlight background
                 context.fill(drawX - 1, contentY - 1, drawX + textWidth + 1, contentY + 10, 0x80FFFF00);
             }
-            
+
             context.drawText(textRenderer, part.text(), drawX, contentY, color, false);
             drawX += textWidth + textRenderer.getWidth(" ");
         }
-        
+
         contentY += 20;
-        
-        // Show structure
-        context.drawText(textRenderer, "§eStructure:", contentX, contentY, 0xFFFFFFFF, false);
+
+        context.drawText(textRenderer, "Structure:", contentX, contentY, TelegraphTheme.SELECTED, false);
         contentY += 12;
-        
+
         String[] structureLines = explanationResult.structure().split("\n");
         for (String line : structureLines) {
             if (contentY > panelY + panelHeight - 15) break;
-            context.drawText(textRenderer, line, contentX + 5, contentY, 0xFFCCCCCC, false);
+            context.drawText(textRenderer, line, contentX + 5, contentY, TelegraphTheme.TEXT_SECONDARY, false);
             contentY += 10;
         }
-        
-        // Show hovered part explanation
+
         if (hoveredPartIndex >= 0 && hoveredPartIndex < explanationResult.parts().size()) {
             CarniteExplainer.MessagePart part = explanationResult.parts().get(hoveredPartIndex);
-            
+
             int tooltipY = panelY + panelHeight - 40;
-            context.fill(contentX, tooltipY, margin + panelWidth - 5, panelY + panelHeight - 5, 0xFF1A1A1A);
-            context.drawBorder(contentX, tooltipY, panelWidth - 10, 35, 0xFFFFFF00);
-            
-            context.drawText(textRenderer, "§e'" + part.text() + "' §f→ §b" + part.expanded(), 
-                           contentX + 5, tooltipY + 5, 0xFFFFFFFF, false);
-            context.drawText(textRenderer, "§7" + part.explanation(), 
-                           contentX + 5, tooltipY + 17, 0xFFFFFFFF, false);
+            context.fill(contentX, tooltipY, layout.margin + panelWidth - 5, panelY + panelHeight - 5, 0xFF1A1A1A);
+            drawBorder(context, contentX, tooltipY, panelWidth - 10, 35, TelegraphTheme.SELECTED);
+
+            context.drawText(textRenderer, "'" + part.text() + "' -> " + part.expanded(),
+                           contentX + 5, tooltipY + 5, TelegraphTheme.INFO, false);
+            context.drawText(textRenderer, part.explanation(),
+                           contentX + 5, tooltipY + 17, TelegraphTheme.TEXT_MUTED, false);
         }
-        
-        // Legend
+
         int legendY = panelY + 5;
-        int legendX = margin + panelWidth - 180;
-        context.drawText(textRenderer, "§7Color Legend:", legendX, legendY, 0xFFFFFFFF, false);
+        int legendX = layout.margin + panelWidth - 180;
+        context.drawText(textRenderer, "Color Legend:", legendX, legendY, TelegraphTheme.TEXT_MUTED, false);
         legendY += 12;
-        
-        String[] legend = {
-            "§bEntity §7(civ/player)",
-            "§aQuantity §7(numbers)",
-            "§eAbbreviation",
-            "§dModifier §7(~/-)  ",
-            "§6Connector §7(,/&)"
+
+        String[][] legend = {
+            {"Entity", "(civ/player)", "0xFF55FFFF"},
+            {"Quantity", "(numbers)", "0xFF55FF55"},
+            {"Abbreviation", "", "0xFFFFFF00"},
+            {"Modifier", "(~/-)", "0xFFAA55FF"},
+            {"Connector", "(,/&)", "0xFFFFAA00"}
         };
-        
-        for (String entry : legend) {
-            context.drawText(textRenderer, entry, legendX, legendY, 0xFFFFFFFF, false);
+
+        for (String[] entry : legend) {
+            int legendColor = Integer.parseUnsignedInt(entry[2].substring(2), 16);
+            context.drawText(textRenderer, entry[0] + " " + entry[1], legendX, legendY, legendColor, false);
             legendY += 10;
         }
     }
-    
+
     private void renderExpandedTranslation(DrawContext context) {
-        int margin = 20;
-        int rightPanelWidth = Math.min(180, width / 4);
-        int panelWidth = width - margin - rightPanelWidth - margin - 10;
-        
-        // Background panel
-        context.fill(margin, panelY, margin + panelWidth, panelY + panelHeight, 0xE0001100);
-        context.drawBorder(margin, panelY, panelWidth, panelHeight, 0xFF00FFFF);
-        
+        int rightPanelWidth = Math.min(180, layout.contentWidth() / 4);
+        int panelWidth = layout.contentWidth() - rightPanelWidth - layout.spacing;
+
+        context.fill(layout.margin, panelY, layout.margin + panelWidth, panelY + panelHeight, 0xE0001100);
+        drawBorder(context, layout.margin, panelY, panelWidth, panelHeight, TelegraphTheme.INFO);
+
         int contentY = panelY + 10;
-        int contentX = margin + 10;
-        
-        context.drawText(textRenderer, "§b§lEXPANDED TRANSLATION", contentX, contentY, 0xFFFFFFFF, false);
+        int contentX = layout.margin + 10;
+
+        context.drawText(textRenderer, "EXPANDED TRANSLATION", contentX, contentY, TelegraphTheme.INFO, false);
         contentY += 20;
-        
-        // Translation
-        context.drawText(textRenderer, "§eEnglish:", contentX, contentY, 0xFFFFFFFF, false);
+
+        context.drawText(textRenderer, "English:", contentX, contentY, TelegraphTheme.SELECTED, false);
         contentY += 15;
-        
+
         String translation = explanationResult.translation();
         List<String> wrappedTranslation = wrapText(translation, panelWidth - 30);
         for (String line : wrappedTranslation) {
-            context.drawText(textRenderer, "§f" + line, contentX + 10, contentY, 0xFFFFFFFF, false);
+            context.drawText(textRenderer, line, contentX + 10, contentY, TelegraphTheme.TEXT_PRIMARY, false);
             contentY += 12;
         }
-        
+
         contentY += 10;
-        
-        // Show all parts with expansions
-        context.drawText(textRenderer, "§eWord-by-Word Breakdown:", contentX, contentY, 0xFFFFFFFF, false);
+
+        context.drawText(textRenderer, "Word-by-Word Breakdown:", contentX, contentY, TelegraphTheme.SELECTED, false);
         contentY += 15;
-        
+
         for (CarniteExplainer.MessagePart part : explanationResult.parts()) {
             if (contentY > panelY + panelHeight - 15) break;
-            
+
             if (!part.text().equals(part.expanded())) {
-                String line = "§7" + part.text() + " §f→ §b" + part.expanded();
-                context.drawText(textRenderer, line, contentX + 10, contentY, 0xFFFFFFFF, false);
+                String line = part.text() + " -> " + part.expanded();
+                context.drawText(textRenderer, line, contentX + 10, contentY, TelegraphTheme.INFO, false);
                 contentY += 11;
             }
         }
     }
-    
+
     private int getColorForPartType(CarniteExplainer.MessagePartType type) {
         return switch (type) {
-            case ENTITY -> 0xFF55FFFF;        // Cyan
-            case CONNECTOR -> 0xFFFFAA00;     // Orange
-            case QUANTITY -> 0xFF55FF55;      // Green
-            case QUESTION -> 0xFFFF55FF;      // Magenta
-            case RESPONSE -> 0xFFFF88FF;      // Pink
-            case MODIFIER -> 0xFFAA55FF;      // Purple
-            case QUOTE -> 0xFFFFFF55;         // Yellow
-            case ABBREVIATION -> 0xFFFFFF00;  // Bright Yellow
-            case WORD -> 0xFFFFFFFF;          // White
-            case SYMBOL -> 0xFFAAAAAA;        // Gray
+            case ENTITY -> 0xFF55FFFF;
+            case CONNECTOR -> 0xFFFFAA00;
+            case QUANTITY -> 0xFF55FF55;
+            case QUESTION -> 0xFFFF55FF;
+            case RESPONSE -> 0xFFFF88FF;
+            case MODIFIER -> 0xFFAA55FF;
+            case QUOTE -> 0xFFFFFF55;
+            case ABBREVIATION -> 0xFFFFFF00;
+            case WORD -> 0xFFFFFFFF;
+            case SYMBOL -> 0xFFAAAAAA;
         };
     }
-    
+
     private List<String> wrapText(String text, int maxWidth) {
         List<String> lines = new ArrayList<>();
         String[] words = text.split(" ");
         StringBuilder current = new StringBuilder();
-        
+
         for (String word : words) {
             String test = current.length() == 0 ? word : current + " " + word;
             if (textRenderer.getWidth(test) <= maxWidth) {
@@ -655,76 +650,91 @@ public class CarniteComposerScreen extends Screen {
                 }
             }
         }
-        
+
         if (current.length() > 0) {
             lines.add(current.toString());
         }
-        
+
         return lines;
     }
-    
-    private void renderHelpOverlay(DrawContext context) {
-        int overlayX = width / 4;
-        int overlayY = 60;
-        int overlayW = width / 2;
-        int overlayH = height - 140;
-        
-        // Background
-        context.fill(overlayX, overlayY, overlayX + overlayW, overlayY + overlayH, 0xE0000000);
-        context.drawBorder(overlayX, overlayY, overlayW, overlayH, 0xFFFFFFFF);
-        
-        // Content
-        int contentY = overlayY + 10;
-        int contentX = overlayX + 10;
-        
-        context.drawText(textRenderer, "§lCarnite Telegraphic Quick Guide", contentX, contentY, 0xFFFFFFFF, false);
-        contentY += 20;
-        
-        context.drawText(textRenderer, "§eWord Order: [What] [Where] [Who] [Action]", contentX, contentY, 0xFFFFFFFF, false);
-        contentY += 12;
-        context.drawText(textRenderer, "Example: 'dmd CN ; take' = Diamonds from CN my-civ takes", contentX, contentY, 0xFFAAAAAA, false);
-        contentY += 20;
-        
-        context.drawText(textRenderer, "§eKey Symbols:", contentX, contentY, 0xFFFFFFFF, false);
-        contentY += 12;
-        
-        String[] helpLines = {
-            "| = agent/player (after role/job)",
-            ": = your civ (addressing someone)",
-            "; = my civ (we/us/our)",
-            ", = property of (links descriptors)",
-            "& = and (joins items)",
-            ". = stack of 64 (2.5 = 133 items)",
-            "_ = question blank",
-            "^ = response/because",
-            "~ = plural/about/approximate",
-            ":: = to all civs on channel",
-            "- = negation/not"
-        };
-        
-        for (String line : helpLines) {
-            context.drawText(textRenderer, line, contentX, contentY, 0xFFCCCCCC, false);
-            contentY += 11;
-        }
-        
+
+    private void renderHelpSidebar(DrawContext context) {
+        int rightPanelWidth = Math.min(180, layout.contentWidth() / 4);
+        int sidebarX = width - layout.margin - rightPanelWidth;
+        int sidebarY = layout.margin + layout.headerHeight + layout.buttonHeight * 2 + layout.spacing * 3;
+        int sidebarH = bottomButtonY - sidebarY - 10;
+
+        context.fill(sidebarX, sidebarY, sidebarX + rightPanelWidth, sidebarY + sidebarH, 0xF0101010);
+        drawBorder(context, sidebarX, sidebarY, rightPanelWidth, sidebarH, TelegraphTheme.INFO);
+
+        int contentY = sidebarY + 8;
+        int contentX = sidebarX + 8;
+
+        context.drawText(textRenderer, "Quick Reference", contentX, contentY, TelegraphTheme.INFO, false);
+        contentY += 14;
+
+        context.drawText(textRenderer, "Word Order:", contentX, contentY, TelegraphTheme.SELECTED, false);
         contentY += 10;
-        context.drawText(textRenderer, "§eExamples:", contentX, contentY, 0xFFFFFFFF, false);
+        context.drawText(textRenderer, "[What][Where]", contentX, contentY, TelegraphTheme.TEXT_MUTED, false);
+        contentY += 9;
+        context.drawText(textRenderer, "[Who][Action]", contentX, contentY, TelegraphTheme.TEXT_MUTED, false);
         contentY += 12;
-        
-        String[] examples = {
-            "~rd| ; - Raiders at my civ",
-            "2bld|5 CN: - 2 level-5 builders to CN",
-            ".dmd CN ; trd - 1 stack diamonds CN my-civ traded",
-            "_ CN atk - Who is attacking CN?",
-            "^ y - Response: yes"
+
+        context.drawText(textRenderer, "Symbols:", contentX, contentY, TelegraphTheme.SELECTED, false);
+        contentY += 10;
+
+        String[][] symbols = {
+            {"|", "Agent/Player"},
+            {":", "Your civ"},
+            {";", "My civ"},
+            {",", "Property of"},
+            {".", "Stack (64)"},
+            {"_", "Question"},
+            {"^", "Response"},
+            {"~", "Plural"},
+            {"-", "Negation"}
         };
-        
-        for (String ex : examples) {
-            context.drawText(textRenderer, ex, contentX, contentY, 0xFF88FFFF, false);
-            contentY += 11;
+
+        for (String[] sym : symbols) {
+            if (contentY > sidebarY + sidebarH - 30) break;
+            context.drawText(textRenderer, sym[0] + " " + sym[1], contentX, contentY, TelegraphTheme.TEXT_SECONDARY, false);
+            contentY += 9;
+        }
+
+        context.drawText(textRenderer, "[Esc] close", contentX, sidebarY + sidebarH - 12, TelegraphTheme.TEXT_MUTED, false);
+    }
+
+    private void renderSymbolTooltips(DrawContext context, int mouseX, int mouseY) {
+        hoveredSymbolIndex = -1;
+
+        Map<String, String> symbols = CarniteVocabulary.getSymbols();
+        String[] symbolKeys = symbols.keySet().toArray(new String[0]);
+
+        for (int i = 0; i < symbolButtons.size() && i < symbolKeys.length; i++) {
+            ButtonWidget btn = symbolButtons.get(i);
+            if (mouseX >= btn.getX() && mouseX <= btn.getX() + btn.getWidth() &&
+                mouseY >= btn.getY() && mouseY <= btn.getY() + btn.getHeight()) {
+
+                hoveredSymbolIndex = i;
+                String symbol = symbolKeys[i];
+                String meaning = symbols.get(symbol);
+
+                int tooltipX = mouseX + 10;
+                int tooltipY = mouseY - 20;
+                int tooltipWidth = textRenderer.getWidth(meaning) + 10;
+
+                if (tooltipX + tooltipWidth > width) {
+                    tooltipX = width - tooltipWidth - 5;
+                }
+
+                context.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipWidth, tooltipY + 12, 0xF0000000);
+                drawBorder(context, tooltipX - 2, tooltipY - 2, tooltipWidth + 2, 14, TelegraphTheme.SELECTED);
+                context.drawText(textRenderer, meaning, tooltipX + 3, tooltipY, TelegraphTheme.SELECTED, false);
+                break;
+            }
         }
     }
-    
+
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (templateDropdown != null && templateDropdown.mouseClicked(mouseX, mouseY, button)) {
@@ -735,7 +745,7 @@ public class CarniteComposerScreen extends Screen {
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
-    
+
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         if (templateDropdown != null && templateDropdown.mouseScrolled(mouseX, mouseY, verticalAmount)) {
@@ -747,16 +757,11 @@ public class CarniteComposerScreen extends Screen {
         scrollOffset += (int) (verticalAmount * 10);
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
-    
+
     @Override
     public void close() {
         if (client != null) {
             client.setScreen(parent);
         }
-    }
-    
-    @Override
-    public boolean shouldPause() {
-        return false;
     }
 }
