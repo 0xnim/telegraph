@@ -11,6 +11,7 @@ public class TelegraphChannel {
     private final Map<Integer, String> userSetNames = new HashMap<>();
     private final Map<Integer, ChannelSettings> channelSettings = new HashMap<>();
     private final Map<Integer, Instant> lastSeenTimestamp = new HashMap<>();
+    private final Map<Integer, Set<String>> activeDecorations = new HashMap<>();
     private static final int MAX_HISTORY = 100;
     
     public void setChannelName(int mapId, String name) {
@@ -43,13 +44,52 @@ public class TelegraphChannel {
     }
     
     public void addMessage(TelegraphMessage message) {
-        messageHistory.computeIfAbsent(message.mapId(), k -> new ArrayList<>()).add(message);
-        List<TelegraphMessage> history = messageHistory.get(message.mapId());
+        List<TelegraphMessage> history = messageHistory.computeIfAbsent(message.mapId(), k -> new ArrayList<>());
+
+        if (message.decoration() != null && message.type() != null) {
+            String decoKey = getDecorationKey(message.decoration());
+            Set<String> active = activeDecorations.computeIfAbsent(message.mapId(), k -> new HashSet<>());
+
+            switch (message.type()) {
+                case ADDED -> {
+                    if (active.contains(decoKey)) {
+                        return;
+                    }
+                    active.add(decoKey);
+                }
+                case REMOVED -> {
+                    active.remove(decoKey);
+                }
+                case CHANGED -> {
+                }
+            }
+        }
+
+        history.add(message);
         if (history.size() > MAX_HISTORY) {
             history.remove(0);
         }
     }
-    
+
+    private String getDecorationKey(DecorationSnapshot deco) {
+        return deco.type() + "_" + deco.x() + "_" + deco.z() + "_" + deco.name();
+    }
+
+    public boolean isDecorationActive(int mapId, DecorationSnapshot decoration) {
+        if (decoration == null) {
+            return false;
+        }
+        Set<String> active = activeDecorations.get(mapId);
+        if (active == null) {
+            return false;
+        }
+        return active.contains(getDecorationKey(decoration));
+    }
+
+    public boolean isMessageDecorationActive(TelegraphMessage message) {
+        return isDecorationActive(message.mapId(), message.decoration());
+    }
+
     public List<TelegraphMessage> getMessages(int mapId) {
         List<TelegraphMessage> msgs = messageHistory.getOrDefault(mapId, Collections.emptyList());
         return new ArrayList<>(msgs);
@@ -59,6 +99,7 @@ public class TelegraphChannel {
         channelNames.remove(mapId);
         userSetNames.remove(mapId);
         messageHistory.remove(mapId);
+        activeDecorations.remove(mapId);
     }
     
     public boolean ensureChannelExists(int mapId) {
