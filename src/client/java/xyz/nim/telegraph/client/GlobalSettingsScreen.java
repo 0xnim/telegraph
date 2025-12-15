@@ -40,7 +40,8 @@ public class GlobalSettingsScreen extends TelegraphScreen {
     protected void init() {
         super.init();
 
-        int y = layout.margin + layout.headerHeight + layout.spacing;
+        int headerY = layout.margin + layout.spacing + 8;
+        int y = headerY + layout.headerHeight + layout.spacing;
 
         // Input fields - responsive widths based on screen size
         int codeFieldWidth = Math.max(60, Math.min(80, layout.contentWidth() / 8));
