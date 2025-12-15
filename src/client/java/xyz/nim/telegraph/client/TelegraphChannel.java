@@ -278,4 +278,13 @@ public class TelegraphChannel {
         List<String> tags,
         int unreadCount
     ) {}
+
+    public void clear() {
+        channelNames.clear();
+        messageHistory.clear();
+        userSetNames.clear();
+        channelSettings.clear();
+        lastSeenTimestamp.clear();
+        activeDecorations.clear();
+    }
 }

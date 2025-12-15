@@ -23,18 +23,38 @@ public class PersistenceManager {
     private static final String CIVILIZATIONS_FILE = "civilizations.json";
     private static final String GLOBAL_SETTINGS_FILE = "global_settings.json";
     private final Gson gson;
-    
+    private String currentWorldId;
+
     public PersistenceManager() {
         this.gson = new GsonBuilder()
             .setPrettyPrinting()
             .create();
     }
-    
+
+    public void setCurrentWorldId(String worldId) {
+        this.currentWorldId = worldId;
+    }
+
+    public String getCurrentWorldId() {
+        return currentWorldId;
+    }
+
+    public boolean hasWorld() {
+        return currentWorldId != null && !currentWorldId.isEmpty();
+    }
+
     private Path getConfigDir() {
+        if (!hasWorld()) {
+            return null;
+        }
+
         MinecraftClient client = MinecraftClient.getInstance();
         if (client == null) return null;
-        
-        Path configPath = client.runDirectory.toPath().resolve(CONFIG_DIR);
+
+        Path configPath = client.runDirectory.toPath()
+            .resolve(CONFIG_DIR)
+            .resolve("worlds")
+            .resolve(currentWorldId);
         try {
             Files.createDirectories(configPath);
         } catch (IOException e) {
