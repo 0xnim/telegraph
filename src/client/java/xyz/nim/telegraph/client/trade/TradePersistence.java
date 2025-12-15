@@ -2,6 +2,7 @@ package xyz.nim.telegraph.client.trade;
 
 import com.google.gson.*;
 import net.minecraft.client.MinecraftClient;
+import xyz.nim.telegraph.client.WorldIdentifier;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -12,18 +13,26 @@ public class TradePersistence {
     private static final String CONFIG_DIR = "config/telegraph";
     private static final String TRADES_FILE = "trade_status.json";
     private final Gson gson;
-    
+
     public TradePersistence() {
         this.gson = new GsonBuilder()
             .setPrettyPrinting()
             .create();
     }
-    
+
     private Path getConfigDir() {
+        String worldId = WorldIdentifier.getCurrentWorldId().orElse(null);
+        if (worldId == null) {
+            return null;
+        }
+
         MinecraftClient client = MinecraftClient.getInstance();
         if (client == null) return null;
-        
-        Path configPath = client.runDirectory.toPath().resolve(CONFIG_DIR);
+
+        Path configPath = client.runDirectory.toPath()
+            .resolve(CONFIG_DIR)
+            .resolve("worlds")
+            .resolve(worldId);
         try {
             Files.createDirectories(configPath);
         } catch (IOException e) {

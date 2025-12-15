@@ -5,6 +5,7 @@ import net.minecraft.component.type.MapIdComponent;
 import net.minecraft.item.map.MapState;
 
 import java.util.*;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 public class MapDecorationTracker {
@@ -19,15 +20,11 @@ public class MapDecorationTracker {
     private final PersistenceManager persistenceManager;
     private int tickCounter = 0;
     private int saveCounter = 0;
+    private String currentWorldId = null;
 
     public MapDecorationTracker() {
         this.notificationManager = new NotificationManager(telegraphChannel);
         this.persistenceManager = new PersistenceManager();
-
-        persistenceManager.loadChannelSettings(telegraphChannel);
-        persistenceManager.loadMessages(telegraphChannel);
-        persistenceManager.loadCivilizations();
-
         instance = this;
     }
 
@@ -50,7 +47,13 @@ public class MapDecorationTracker {
     }
 
     public void onClientTick(MinecraftClient client) {
-        if (client.player == null) {
+        String newWorldId = WorldIdentifier.getCurrentWorldId().orElse(null);
+
+        if (!Objects.equals(currentWorldId, newWorldId)) {
+            handleWorldChange(newWorldId);
+        }
+
+        if (client.player == null || !persistenceManager.hasWorld()) {
             return;
         }
 
@@ -62,6 +65,26 @@ public class MapDecorationTracker {
             saveCounter = 0;
             persistenceManager.saveChannelSettings(telegraphChannel);
             persistenceManager.saveMessages(telegraphChannel);
+        }
+    }
+
+    private void handleWorldChange(String newWorldId) {
+        if (currentWorldId != null && persistenceManager.hasWorld()) {
+            persistenceManager.saveChannelSettings(telegraphChannel);
+            persistenceManager.saveMessages(telegraphChannel);
+            persistenceManager.saveCivilizations();
+        }
+
+        telegraphChannel.clear();
+        mapCache.clear();
+
+        currentWorldId = newWorldId;
+        persistenceManager.setCurrentWorldId(newWorldId);
+
+        if (newWorldId != null) {
+            persistenceManager.loadChannelSettings(telegraphChannel);
+            persistenceManager.loadMessages(telegraphChannel);
+            persistenceManager.loadCivilizations();
         }
     }
 
