@@ -1,20 +1,20 @@
 package xyz.nim.telegraph.mixin.client;
 
-import net.minecraft.client.network.ClientPlayNetworkHandler;
-import net.minecraft.component.type.MapIdComponent;
-import net.minecraft.network.packet.s2c.play.MapUpdateS2CPacket;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.world.level.saveddata.maps.MapId;
+import net.minecraft.network.protocol.game.ClientboundMapItemDataPacket;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import xyz.nim.telegraph.client.MapDecorationTracker;
 
-@Mixin(ClientPlayNetworkHandler.class)
+@Mixin(ClientPacketListener.class)
 public class MapUpdateMixin {
 
-    @Inject(method = "onMapUpdate", at = @At("TAIL"))
-    private void onMapUpdate(MapUpdateS2CPacket packet, CallbackInfo ci) {
-        MapIdComponent mapId = packet.mapId();
+    @Inject(method = "handleMapItemData", at = @At("TAIL"))
+    private void onMapUpdate(ClientboundMapItemDataPacket packet, CallbackInfo ci) {
+        MapId mapId = packet.mapId();
         MapDecorationTracker.onMapUpdate(mapId);
     }
 }

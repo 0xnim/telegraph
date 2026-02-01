@@ -94,6 +94,33 @@ public class TelegraphChannel {
         List<TelegraphMessage> msgs = messageHistory.getOrDefault(mapId, Collections.emptyList());
         return new ArrayList<>(msgs);
     }
+
+    public boolean removeMessage(int mapId, TelegraphMessage message) {
+        List<TelegraphMessage> history = messageHistory.get(mapId);
+        if (history == null) return false;
+
+        boolean removed = history.remove(message);
+
+        if (removed && message.decoration() != null && message.type() == TelegraphMessage.ChangeType.ADDED) {
+            Set<String> active = activeDecorations.get(mapId);
+            if (active != null) {
+                active.remove(getDecorationKey(message.decoration()));
+            }
+        }
+
+        return removed;
+    }
+
+    public void clearMessages(int mapId) {
+        List<TelegraphMessage> history = messageHistory.get(mapId);
+        if (history != null) {
+            history.clear();
+        }
+        Set<String> active = activeDecorations.get(mapId);
+        if (active != null) {
+            active.clear();
+        }
+    }
     
     public void removeChannel(int mapId) {
         channelNames.remove(mapId);

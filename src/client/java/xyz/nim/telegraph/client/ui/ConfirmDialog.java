@@ -1,10 +1,10 @@
 package xyz.nim.telegraph.client.ui;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.Font;
+import net.minecraft.network.chat.Component;
 
 import java.util.function.Consumer;
 
@@ -25,8 +25,8 @@ public class ConfirmDialog {
     private final Runnable onConfirm;
     private final Runnable onCancel;
 
-    private ButtonWidget confirmButton;
-    private ButtonWidget cancelButton;
+    private Button confirmButton;
+    private Button cancelButton;
     private boolean visible = false;
     private int dialogX;
     private int dialogY;
@@ -43,11 +43,11 @@ public class ConfirmDialog {
         this(title, message, onConfirm, null);
     }
 
-    public void show(int screenWidth, int screenHeight, Consumer<ButtonWidget> addButton) {
+    public void show(int screenWidth, int screenHeight, Consumer<Button> addButton) {
         visible = true;
 
-        TextRenderer textRenderer = MinecraftClient.getInstance().textRenderer;
-        int messageLines = (int) Math.ceil(textRenderer.getWidth(message) / (double) (DIALOG_WIDTH - DIALOG_PADDING * 2));
+        Font font = Minecraft.getInstance().font;
+        int messageLines = (int) Math.ceil(font.width(message) / (double) (DIALOG_WIDTH - DIALOG_PADDING * 2));
         messageLines = Math.max(1, Math.min(messageLines, 4));
 
         dialogHeight = DIALOG_PADDING * 3 + 12 + messageLines * 10 + BUTTON_HEIGHT;
@@ -58,15 +58,15 @@ public class ConfirmDialog {
         int buttonsWidth = BUTTON_WIDTH * 2 + BUTTON_SPACING;
         int buttonStartX = dialogX + (DIALOG_WIDTH - buttonsWidth) / 2;
 
-        confirmButton = ButtonWidget.builder(Text.literal("Confirm"), btn -> {
+        confirmButton = Button.builder(Component.literal("Confirm"), btn -> {
             hide();
             onConfirm.run();
-        }).dimensions(buttonStartX, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT).build();
+        }).bounds(buttonStartX, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT).build();
 
-        cancelButton = ButtonWidget.builder(Text.literal("Cancel"), btn -> {
+        cancelButton = Button.builder(Component.literal("Cancel"), btn -> {
             hide();
             onCancel.run();
-        }).dimensions(buttonStartX + BUTTON_WIDTH + BUTTON_SPACING, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT).build();
+        }).bounds(buttonStartX + BUTTON_WIDTH + BUTTON_SPACING, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT).build();
 
         addButton.accept(confirmButton);
         addButton.accept(cancelButton);
@@ -74,29 +74,37 @@ public class ConfirmDialog {
 
     public void hide() {
         visible = false;
+        if (confirmButton != null) {
+            confirmButton.visible = false;
+        }
+        if (cancelButton != null) {
+            cancelButton.visible = false;
+        }
     }
 
     public boolean isVisible() {
         return visible;
     }
 
-    public void render(DrawContext context, TextRenderer textRenderer, int mouseX, int mouseY) {
+    public void render(GuiGraphics context, Font font, int mouseX, int mouseY) {
         if (!visible) return;
 
-        context.fill(0, 0, context.getScaledWindowWidth(), context.getScaledWindowHeight(), 0x80000000);
+        int windowWidth = Minecraft.getInstance().getWindow().getGuiScaledWidth();
+        int windowHeight = Minecraft.getInstance().getWindow().getGuiScaledHeight();
+        context.fill(0, 0, windowWidth, windowHeight, 0x80000000);
 
         context.fill(dialogX, dialogY, dialogX + DIALOG_WIDTH, dialogY + dialogHeight, BG_COLOR);
-        context.drawBorder(dialogX, dialogY, DIALOG_WIDTH, dialogHeight, BORDER_COLOR);
+        context.renderOutline(dialogX, dialogY, DIALOG_WIDTH, dialogHeight, BORDER_COLOR);
 
-        context.drawCenteredTextWithShadow(textRenderer, title, dialogX + DIALOG_WIDTH / 2, dialogY + DIALOG_PADDING, TITLE_COLOR);
+        context.drawCenteredString(font, title, dialogX + DIALOG_WIDTH / 2, dialogY + DIALOG_PADDING, TITLE_COLOR);
 
         int messageY = dialogY + DIALOG_PADDING + 14;
         int maxWidth = DIALOG_WIDTH - DIALOG_PADDING * 2;
         String remaining = message;
         int lines = 0;
         while (!remaining.isEmpty() && lines < 4) {
-            String line = textRenderer.trimToWidth(remaining, maxWidth);
-            context.drawCenteredTextWithShadow(textRenderer, line, dialogX + DIALOG_WIDTH / 2, messageY, MESSAGE_COLOR);
+            String line = font.plainSubstrByWidth(remaining, maxWidth);
+            context.drawCenteredString(font, line, dialogX + DIALOG_WIDTH / 2, messageY, MESSAGE_COLOR);
             remaining = remaining.substring(line.length()).trim();
             messageY += 10;
             lines++;
@@ -135,11 +143,11 @@ public class ConfirmDialog {
         return true;
     }
 
-    public ButtonWidget getConfirmButton() {
+    public Button getConfirmButton() {
         return confirmButton;
     }
 
-    public ButtonWidget getCancelButton() {
+    public Button getCancelButton() {
         return cancelButton;
     }
 }

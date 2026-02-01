@@ -1,10 +1,10 @@
 package xyz.nim.telegraph.client.ui;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.Font;
+import net.minecraft.network.chat.Component;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -24,7 +24,7 @@ public class SettingsDialog {
     private final List<SettingRow> rows;
     private final Runnable onClose;
 
-    private ButtonWidget closeButton;
+    private Button closeButton;
     private boolean visible = false;
     private int dialogX;
     private int dialogY;
@@ -36,7 +36,7 @@ public class SettingsDialog {
         this.onClose = onClose != null ? onClose : () -> {};
     }
 
-    public void show(int screenWidth, int screenHeight, Consumer<ButtonWidget> addButton) {
+    public void show(int screenWidth, int screenHeight, Consumer<Button> addButton) {
         visible = true;
 
         dialogHeight = DIALOG_PADDING * 2 + 14 + rows.size() * ROW_HEIGHT + BUTTON_HEIGHT + 8;
@@ -48,10 +48,10 @@ public class SettingsDialog {
         int buttonX = dialogX + DIALOG_PADDING + 75;
 
         for (SettingRow row : rows) {
-            row.button = ButtonWidget.builder(Text.literal(row.currentValue), btn -> {
+            row.button = Button.builder(Component.literal(row.currentValue), btn -> {
                 row.onCycle.run();
-                btn.setMessage(Text.literal(row.getCurrentValue()));
-            }).dimensions(buttonX, currentY, buttonWidth, BUTTON_HEIGHT).build();
+                btn.setMessage(Component.literal(row.getCurrentValue()));
+            }).bounds(buttonX, currentY, buttonWidth, BUTTON_HEIGHT).build();
             row.button.visible = row.isVisible();
             row.button.active = row.isEnabled();
             addButton.accept(row.button);
@@ -59,10 +59,10 @@ public class SettingsDialog {
         }
 
         int closeY = dialogY + dialogHeight - DIALOG_PADDING - BUTTON_HEIGHT;
-        closeButton = ButtonWidget.builder(Text.literal("Done"), btn -> {
+        closeButton = Button.builder(Component.literal("Done"), btn -> {
             hide();
             onClose.run();
-        }).dimensions(dialogX + (DIALOG_WIDTH - 80) / 2, closeY, 80, BUTTON_HEIGHT).build();
+        }).bounds(dialogX + (DIALOG_WIDTH - 80) / 2, closeY, 80, BUTTON_HEIGHT).build();
         addButton.accept(closeButton);
     }
 
@@ -85,29 +85,31 @@ public class SettingsDialog {
     public void updateRows() {
         for (SettingRow row : rows) {
             if (row.button != null) {
-                row.button.setMessage(Text.literal(row.getCurrentValue()));
+                row.button.setMessage(Component.literal(row.getCurrentValue()));
                 row.button.visible = visible && row.isVisible();
                 row.button.active = row.isEnabled();
             }
         }
     }
 
-    public void render(DrawContext context, TextRenderer textRenderer, int mouseX, int mouseY) {
+    public void render(GuiGraphics context, Font font, int mouseX, int mouseY) {
         if (!visible) return;
 
-        context.fill(0, 0, context.getScaledWindowWidth(), context.getScaledWindowHeight(), 0x80000000);
+        int windowWidth = Minecraft.getInstance().getWindow().getGuiScaledWidth();
+        int windowHeight = Minecraft.getInstance().getWindow().getGuiScaledHeight();
+        context.fill(0, 0, windowWidth, windowHeight, 0x80000000);
 
         context.fill(dialogX, dialogY, dialogX + DIALOG_WIDTH, dialogY + dialogHeight, BG_COLOR);
-        context.drawBorder(dialogX, dialogY, DIALOG_WIDTH, dialogHeight, BORDER_COLOR);
+        context.renderOutline(dialogX, dialogY, DIALOG_WIDTH, dialogHeight, BORDER_COLOR);
 
-        context.drawCenteredTextWithShadow(textRenderer, title, dialogX + DIALOG_WIDTH / 2, dialogY + DIALOG_PADDING, TITLE_COLOR);
+        context.drawCenteredString(font, title, dialogX + DIALOG_WIDTH / 2, dialogY + DIALOG_PADDING, TITLE_COLOR);
 
         int labelX = dialogX + DIALOG_PADDING;
         int currentY = dialogY + DIALOG_PADDING + 18 + 5;
 
         for (SettingRow row : rows) {
             if (row.isVisible()) {
-                context.drawText(textRenderer, row.label, labelX, currentY, LABEL_COLOR, false);
+                context.drawString(font, row.label, labelX, currentY, LABEL_COLOR, false);
             }
             currentY += ROW_HEIGHT;
         }
@@ -153,7 +155,7 @@ public class SettingsDialog {
         private final java.util.function.BooleanSupplier visibilitySupplier;
         private final java.util.function.BooleanSupplier enabledSupplier;
         private String currentValue;
-        private ButtonWidget button;
+        private Button button;
 
         public SettingRow(String label, java.util.function.Supplier<String> valueSupplier, Runnable onCycle) {
             this(label, valueSupplier, onCycle, () -> true, () -> true);

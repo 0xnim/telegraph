@@ -1,7 +1,7 @@
 package xyz.nim.telegraph.client;
 
 import com.google.gson.*;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import xyz.nim.telegraph.client.carnite.CarniteVocabulary;
 import xyz.nim.telegraph.client.protocol.CarniteProtocol;
 import xyz.nim.telegraph.client.protocol.CommunicationProtocol;
@@ -48,10 +48,10 @@ public class PersistenceManager {
             return null;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) return null;
 
-        Path configPath = client.runDirectory.toPath()
+        Path configPath = client.gameDirectory.toPath()
             .resolve(CONFIG_DIR)
             .resolve("worlds")
             .resolve(currentWorldId);

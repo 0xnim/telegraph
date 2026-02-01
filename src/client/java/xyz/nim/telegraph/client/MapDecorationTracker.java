@@ -1,8 +1,8 @@
 package xyz.nim.telegraph.client;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.component.type.MapIdComponent;
-import net.minecraft.item.map.MapState;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.saveddata.maps.MapId;
+import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 
 import java.util.*;
 import java.util.Objects;
@@ -28,9 +28,9 @@ public class MapDecorationTracker {
         instance = this;
     }
 
-    public static void onMapUpdate(MapIdComponent mapIdComponent) {
+    public static void onMapUpdate(MapId mapId) {
         if (instance != null) {
-            instance.processMap(mapIdComponent);
+            instance.processMap(mapId);
         }
     }
 
@@ -46,7 +46,7 @@ public class MapDecorationTracker {
         return telegraphChannel;
     }
 
-    public void onClientTick(MinecraftClient client) {
+    public void onClientTick(Minecraft client) {
         String newWorldId = WorldIdentifier.getCurrentWorldId().orElse(null);
 
         if (!Objects.equals(currentWorldId, newWorldId)) {
@@ -88,22 +88,22 @@ public class MapDecorationTracker {
         }
     }
 
-    private void processMap(MapIdComponent mapIdComponent) {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.world == null) {
+    private void processMap(MapId mapId) {
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.level == null) {
             return;
         }
 
-        int mapId = mapIdComponent.id();
+        int mapIdInt = mapId.id();
 
-        MapState mapState = client.world.getMapState(mapIdComponent);
+        MapItemSavedData mapState = client.level.getMapData(mapId);
         if (mapState == null) {
             return;
         }
 
-        boolean isNewChannel = telegraphChannel.ensureChannelExists(mapId);
+        boolean isNewChannel = telegraphChannel.ensureChannelExists(mapIdInt);
         if (isNewChannel) {
-            telegraphChannel.addWelcomeMessage(mapId);
+            telegraphChannel.addWelcomeMessage(mapIdInt);
         }
 
         Map<String, DecorationSnapshot> newSnapshot = new HashMap<>();
@@ -113,23 +113,23 @@ public class MapDecorationTracker {
 
             if (assetId.contains("banner")) {
                 String name = decoration.name().map(text -> text.getString()).orElse(null);
-                String key = assetId + "_" + decoration.x() + "_" + decoration.z();
+                String key = assetId + "_" + decoration.x() + "_" + decoration.y();
                 newSnapshot.put(key, new DecorationSnapshot(
                     assetId,
                     decoration.x(),
-                    decoration.z(),
-                    decoration.rotation(),
+                    decoration.y(),
+                    decoration.rot(),
                     name
                 ));
             }
         }
 
-        Map<String, DecorationSnapshot> oldSnapshot = mapCache.get(mapId);
+        Map<String, DecorationSnapshot> oldSnapshot = mapCache.get(mapIdInt);
 
         if (oldSnapshot == null) {
             for (var entry : newSnapshot.entrySet()) {
                 fireEvent(new MapDecorationChangeEvent(
-                    mapId,
+                    mapIdInt,
                     MapDecorationChangeEvent.ChangeType.ADDED,
                     entry.getKey(),
                     entry.getValue(),
@@ -143,7 +143,7 @@ public class MapDecorationTracker {
             for (String key : newKeys) {
                 if (!oldKeys.contains(key)) {
                     fireEvent(new MapDecorationChangeEvent(
-                        mapId,
+                        mapIdInt,
                         MapDecorationChangeEvent.ChangeType.ADDED,
                         key,
                         newSnapshot.get(key),
@@ -154,7 +154,7 @@ public class MapDecorationTracker {
                     DecorationSnapshot newDeco = newSnapshot.get(key);
                     if (!oldDeco.equals(newDeco)) {
                         fireEvent(new MapDecorationChangeEvent(
-                            mapId,
+                            mapIdInt,
                             MapDecorationChangeEvent.ChangeType.CHANGED,
                             key,
                             newDeco,
@@ -167,7 +167,7 @@ public class MapDecorationTracker {
             for (String key : oldKeys) {
                 if (!newKeys.contains(key)) {
                     fireEvent(new MapDecorationChangeEvent(
-                        mapId,
+                        mapIdInt,
                         MapDecorationChangeEvent.ChangeType.REMOVED,
                         key,
                         null,
@@ -177,7 +177,7 @@ public class MapDecorationTracker {
             }
         }
 
-        mapCache.put(mapId, newSnapshot);
+        mapCache.put(mapIdInt, newSnapshot);
     }
 
     private void fireEvent(MapDecorationChangeEvent event) {

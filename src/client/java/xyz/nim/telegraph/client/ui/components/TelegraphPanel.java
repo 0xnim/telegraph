@@ -1,7 +1,7 @@
 package xyz.nim.telegraph.client.ui.components;
 
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphics;
 import xyz.nim.telegraph.client.ui.SimpleLayout;
 import xyz.nim.telegraph.client.ui.TelegraphTheme;
 
@@ -37,7 +37,7 @@ public class TelegraphPanel {
         return this;
     }
 
-    public void render(DrawContext ctx, TextRenderer font) {
+    public void render(GuiGraphics ctx, Font font) {
         // Draw background
         ctx.fill(x, y, x + width, y + height, TelegraphTheme.PANEL_BG);
         drawBorder(ctx, x, y, width, height, TelegraphTheme.PANEL_BORDER);
@@ -45,15 +45,15 @@ public class TelegraphPanel {
         // Draw header if present
         if (hasHeader && title != null) {
             ctx.fill(x + 1, y + 1, x + width - 1, y + headerHeight, TelegraphTheme.HEADER_BG);
-            ctx.drawText(font, title, x + padding, y + (headerHeight - 8) / 2, TelegraphTheme.TEXT_PRIMARY, false);
+            ctx.drawString(font, title, x + padding, y + (headerHeight - 8) / 2, TelegraphTheme.TEXT_PRIMARY, false);
         }
     }
 
-    private void drawBorder(DrawContext ctx, int x, int y, int w, int h, int color) {
-        ctx.drawHorizontalLine(x, x + w - 1, y, color);
-        ctx.drawHorizontalLine(x, x + w - 1, y + h - 1, color);
-        ctx.drawVerticalLine(x, y, y + h - 1, color);
-        ctx.drawVerticalLine(x + w - 1, y, y + h - 1, color);
+    private void drawBorder(GuiGraphics ctx, int x, int y, int w, int h, int color) {
+        ctx.hLine(x, x + w - 1, y, color);
+        ctx.hLine(x, x + w - 1, y + h - 1, color);
+        ctx.vLine(x, y, y + h - 1, color);
+        ctx.vLine(x + w - 1, y, y + h - 1, color);
     }
 
     // Content area accessors

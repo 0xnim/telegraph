@@ -1,7 +1,7 @@
 package xyz.nim.telegraph.client.ui;
 
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.Font;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -85,7 +85,7 @@ public class ToastManager {
         toasts.add(new Toast(message, type));
     }
 
-    public void render(DrawContext context, TextRenderer textRenderer, int screenWidth, int screenHeight) {
+    public void render(GuiGraphics context, Font font, int screenWidth, int screenHeight) {
         Iterator<Toast> iterator = toasts.iterator();
         while (iterator.hasNext()) {
             if (iterator.next().isExpired()) {
@@ -99,7 +99,7 @@ public class ToastManager {
             float opacity = toast.getOpacity();
             if (opacity <= 0) continue;
 
-            int textWidth = textRenderer.getWidth(toast.message);
+            int textWidth = font.width(toast.message);
             int toastWidth = textWidth + TOAST_PADDING * 2 + 16;
             int x = screenWidth - toastWidth - TOAST_MARGIN;
 
@@ -110,8 +110,8 @@ public class ToastManager {
 
             context.fill(x, y, x + toastWidth, y + TOAST_HEIGHT, bgColor);
 
-            context.drawText(textRenderer, toast.type.icon, x + TOAST_PADDING, y + (TOAST_HEIGHT - 8) / 2, textColor, false);
-            context.drawText(textRenderer, toast.message, x + TOAST_PADDING + 14, y + (TOAST_HEIGHT - 8) / 2, textColor, false);
+            context.drawString(font, toast.type.icon, x + TOAST_PADDING, y + (TOAST_HEIGHT - 8) / 2, textColor, false);
+            context.drawString(font, toast.message, x + TOAST_PADDING + 14, y + (TOAST_HEIGHT - 8) / 2, textColor, false);
 
             y -= TOAST_HEIGHT + TOAST_MARGIN;
         }

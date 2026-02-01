@@ -1,10 +1,10 @@
 package xyz.nim.telegraph.client.trade;
 
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
 import xyz.nim.telegraph.client.ChannelSettings;
 import xyz.nim.telegraph.client.TelegraphChannel;
 import xyz.nim.telegraph.client.carnite.CarniteComposerScreen;
@@ -27,16 +27,16 @@ public class TradeComposerScreen extends TelegraphScreen {
     private List<ItemInputGroup> offeringInputs = new ArrayList<>();
     private List<ItemInputGroup> requestingInputs = new ArrayList<>();
 
-    private ButtonWidget addOfferingButton;
-    private ButtonWidget addRequestingButton;
-    private ButtonWidget previewButton;
-    private ButtonWidget sendButton;
-    private ButtonWidget backButton;
+    private Button addOfferingButton;
+    private Button addRequestingButton;
+    private Button previewButton;
+    private Button sendButton;
+    private Button backButton;
 
     private String previewMessage = "";
 
     public TradeComposerScreen(Screen parent, TelegraphChannel channel, int mapId, ChannelSettings settings) {
-        super(Text.literal("Trade Composer"));
+        super(Component.literal("Trade Composer"));
         this.parent = parent;
         this.channel = channel;
         this.mapId = mapId;
@@ -51,29 +51,29 @@ public class TradeComposerScreen extends TelegraphScreen {
         int startY = layout.margin + layout.headerHeight;
         int panelHalfWidth = Math.min(220, layout.contentWidth() / 2);
 
-        backButton = Buttons.back(layout.margin, layout.margin, layout, button -> close());
-        addDrawableChild(backButton);
+        backButton = Buttons.back(layout.margin, layout.margin, layout, button -> onClose());
+        addRenderableWidget(backButton);
 
         int offeringY = startY + layout.spacing;
-        addOfferingButton = Buttons.create(Text.literal("+ Add Item"),
+        addOfferingButton = Buttons.create(Component.literal("+ Add Item"),
                 centerX - panelHalfWidth, offeringY, layout.buttonWidth, layout, button -> addOfferingInput());
-        addDrawableChild(addOfferingButton);
+        addRenderableWidget(addOfferingButton);
 
         int requestingY = startY + 140 + layout.spacing;
-        addRequestingButton = Buttons.create(Text.literal("+ Add Item"),
+        addRequestingButton = Buttons.create(Component.literal("+ Add Item"),
                 centerX - panelHalfWidth, requestingY, layout.buttonWidth, layout, button -> addRequestingInput());
-        addDrawableChild(addRequestingButton);
+        addRenderableWidget(addRequestingButton);
 
         int bottomButtonY = height - layout.margin - layout.buttonHeight;
         int buttonWidth = Math.min(120, layout.contentWidth() / 4);
 
-        previewButton = Buttons.create(Text.literal("\u21BB Update Preview"),
+        previewButton = Buttons.create(Component.literal("\u21BB Update Preview"),
                 centerX - buttonWidth - layout.spacing / 2, bottomButtonY, buttonWidth, layout, button -> updatePreview());
-        addDrawableChild(previewButton);
+        addRenderableWidget(previewButton);
 
-        sendButton = Buttons.create(Text.literal("\u2713 Send Trade"),
+        sendButton = Buttons.create(Component.literal("\u2713 Send Trade"),
                 centerX + layout.spacing / 2, bottomButtonY, buttonWidth, layout, button -> sendTrade());
-        addDrawableChild(sendButton);
+        addRenderableWidget(sendButton);
 
         addOfferingInput();
         addRequestingInput();
@@ -294,21 +294,21 @@ public class TradeComposerScreen extends TelegraphScreen {
     }
 
     private void sendTrade() {
-        if (client == null) return;
+        if (minecraft == null) return;
 
         updatePreview();
-        client.setScreen(new CarniteComposerScreen(parent, channel, mapId, settings, previewMessage, "yellow"));
+        minecraft.setScreen(new CarniteComposerScreen(parent, channel, mapId, settings, previewMessage, "yellow"));
     }
 
     @Override
-    protected void renderPanels(DrawContext context, int mouseX, int mouseY, float delta) {
+    protected void renderPanels(GuiGraphics context, int mouseX, int mouseY, float delta) {
         int centerX = width / 2;
         int startY = layout.margin + layout.headerHeight;
         int panelHalfWidth = Math.min(220, layout.contentWidth() / 2);
         int panelWidth = panelHalfWidth * 2;
 
         // Title
-        context.drawCenteredTextWithShadow(textRenderer, this.title, centerX, layout.margin, TelegraphTheme.TEXT_PRIMARY);
+        context.drawCenteredString(font, this.title, centerX, layout.margin, TelegraphTheme.TEXT_PRIMARY);
 
         // Offering panel
         int offeringPanelY = startY;
@@ -316,7 +316,7 @@ public class TradeComposerScreen extends TelegraphScreen {
         drawPanel(context, centerX - panelHalfWidth, offeringPanelY, panelWidth, offeringPanelHeight);
         context.fill(centerX - panelHalfWidth + 1, offeringPanelY + 1,
                 centerX + panelHalfWidth - 1, offeringPanelY + layout.headerHeight, TelegraphTheme.HEADER_BG);
-        context.drawText(textRenderer, "\u00A76I'm Offering:",
+        context.drawString(font, "\u00A76I'm Offering:",
                 centerX - panelHalfWidth + layout.padding, offeringPanelY + layout.padding, TelegraphTheme.TEXT_PRIMARY, false);
 
         // Requesting panel
@@ -325,30 +325,30 @@ public class TradeComposerScreen extends TelegraphScreen {
         drawPanel(context, centerX - panelHalfWidth, requestingPanelY, panelWidth, requestingPanelHeight);
         context.fill(centerX - panelHalfWidth + 1, requestingPanelY + 1,
                 centerX + panelHalfWidth - 1, requestingPanelY + layout.headerHeight, TelegraphTheme.HEADER_BG);
-        context.drawText(textRenderer, "\u00A76I'm Requesting:",
+        context.drawString(font, "\u00A76I'm Requesting:",
                 centerX - panelHalfWidth + layout.padding, requestingPanelY + layout.padding, TelegraphTheme.TEXT_PRIMARY, false);
 
         // Preview panel
         int previewY = requestingPanelY + requestingPanelHeight + layout.spacing;
         int previewHeight = 50;
         drawPanel(context, centerX - panelHalfWidth, previewY, panelWidth, previewHeight);
-        context.drawText(textRenderer, "\u00A7ePreview (Carnite):",
+        context.drawString(font, "\u00A7ePreview (Carnite):",
                 centerX - panelHalfWidth + layout.padding, previewY + layout.padding, TelegraphTheme.TEXT_PRIMARY, false);
-        context.drawText(textRenderer, "\u00A77" + previewMessage,
+        context.drawString(font, "\u00A77" + previewMessage,
                 centerX - panelHalfWidth + layout.padding, previewY + layout.padding + 15, TelegraphTheme.TEXT_PRIMARY, false);
     }
 
     @Override
-    public void close() {
-        if (client != null) {
-            client.setScreen(parent);
+    public void onClose() {
+        if (minecraft != null) {
+            minecraft.setScreen(parent);
         }
     }
 
     private class ItemInputGroup {
-        private final TextFieldWidget itemField;
-        private final TextFieldWidget quantityField;
-        private final ButtonWidget removeButton;
+        private final EditBox itemField;
+        private final EditBox quantityField;
+        private final Button removeButton;
         private final boolean isOffering;
         private final int index;
 
@@ -359,15 +359,15 @@ public class TradeComposerScreen extends TelegraphScreen {
             int fieldWidth = Math.min(200, layout.contentWidth() / 2 - 100);
             int qtyWidth = Math.min(80, layout.contentWidth() / 6);
 
-            itemField = TextFields.input(textRenderer, x, y, fieldWidth, layout, "Item name...", 32);
-            itemField.setChangedListener(text -> updatePreview());
-            addDrawableChild(itemField);
+            itemField = TextFields.input(font, x, y, fieldWidth, layout, "Item name...", 32);
+            itemField.setResponder(text -> updatePreview());
+            addRenderableWidget(itemField);
 
-            quantityField = TextFields.input(textRenderer, x + fieldWidth + layout.spacing, y, qtyWidth, layout, "Qty...", 6);
-            quantityField.setChangedListener(text -> updatePreview());
-            addDrawableChild(quantityField);
+            quantityField = TextFields.input(font, x + fieldWidth + layout.spacing, y, qtyWidth, layout, "Qty...", 6);
+            quantityField.setResponder(text -> updatePreview());
+            addRenderableWidget(quantityField);
 
-            removeButton = Buttons.small(Text.literal("\u2717"),
+            removeButton = Buttons.small(Component.literal("\u2717"),
                     x + fieldWidth + qtyWidth + layout.spacing * 2, y, layout, button -> {
                         if (isOffering) {
                             removeOfferingInput(this.index);
@@ -375,15 +375,15 @@ public class TradeComposerScreen extends TelegraphScreen {
                             removeRequestingInput(this.index);
                         }
                     });
-            addDrawableChild(removeButton);
+            addRenderableWidget(removeButton);
         }
 
         public String getItemName() {
-            return itemField.getText();
+            return itemField.getValue();
         }
 
         public String getQuantity() {
-            return quantityField.getText();
+            return quantityField.getValue();
         }
 
         public void setPosition(int x, int y) {
@@ -399,9 +399,9 @@ public class TradeComposerScreen extends TelegraphScreen {
         }
 
         public void remove() {
-            TradeComposerScreen.this.remove(itemField);
-            TradeComposerScreen.this.remove(quantityField);
-            TradeComposerScreen.this.remove(removeButton);
+            TradeComposerScreen.this.removeWidget(itemField);
+            TradeComposerScreen.this.removeWidget(quantityField);
+            TradeComposerScreen.this.removeWidget(removeButton);
         }
     }
 }

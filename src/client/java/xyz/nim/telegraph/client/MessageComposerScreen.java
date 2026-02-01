@@ -1,9 +1,10 @@
 package xyz.nim.telegraph.client;
 
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import xyz.nim.telegraph.client.protocol.CarniteProtocol;
 import xyz.nim.telegraph.client.protocol.MapTelegraphProtocol;
 import xyz.nim.telegraph.client.ui.TelegraphScreen;
@@ -17,22 +18,22 @@ import java.util.List;
 public class MessageComposerScreen extends TelegraphScreen {
     private static final int MAX_RECOMMENDED_LENGTH = 32;
 
-    private final net.minecraft.client.gui.screen.Screen parent;
+    private final Screen parent;
     private final TelegraphChannel channel;
     private final int mapId;
     private final ChannelSettings settings;
 
-    private TextFieldWidget messageField;
-    private ButtonWidget doneButton;
-    private ButtonWidget copyButton;
-    private ButtonWidget clearButton;
-    private List<ButtonWidget> colorButtons = new ArrayList<>();
-    private List<ButtonWidget> templateButtons = new ArrayList<>();
+    private EditBox messageField;
+    private Button doneButton;
+    private Button copyButton;
+    private Button clearButton;
+    private List<Button> colorButtons = new ArrayList<>();
+    private List<Button> templateButtons = new ArrayList<>();
 
     private String selectedBannerColor = "white";
 
-    public MessageComposerScreen(net.minecraft.client.gui.screen.Screen parent, TelegraphChannel channel, int mapId) {
-        super(Text.literal("Message Composer"));
+    public MessageComposerScreen(Screen parent, TelegraphChannel channel, int mapId) {
+        super(Component.literal("Message Composer"));
         this.parent = parent;
         this.channel = channel;
         this.mapId = mapId;
@@ -48,10 +49,10 @@ public class MessageComposerScreen extends TelegraphScreen {
         int panelWidth = centered.width;
         int inputFieldY = layout.margin + layout.headerHeight + layout.spacing;
 
-        messageField = TextFields.message(textRenderer, panelX + layout.padding, inputFieldY,
+        messageField = TextFields.message(font, panelX + layout.padding, inputFieldY,
                 panelWidth - layout.padding * 2, layout, 64);
-        messageField.setPlaceholder(Text.literal("Type your message..."));
-        addDrawableChild(messageField);
+        messageField.setHint(Component.literal("Type your message..."));
+        addRenderableWidget(messageField);
 
         int y = inputFieldY + layout.controlHeight + layout.spacing * 2;
 
@@ -79,13 +80,13 @@ public class MessageComposerScreen extends TelegraphScreen {
                 String colorKey = color[0];
                 String label = color[1];
 
-                ButtonWidget colorBtn = Buttons.create(Text.literal(label), colorX, colorY,
+                Button colorBtn = Buttons.create(Component.literal(label), colorX, colorY,
                         colorBtnWidth, layout.buttonHeight, button -> {
                             selectedBannerColor = colorKey;
                             updateColorButtons();
                         });
 
-                addDrawableChild(colorBtn);
+                addRenderableWidget(colorBtn);
                 colorButtons.add(colorBtn);
 
                 colorY += layout.buttonHeight + 2;
@@ -103,29 +104,29 @@ public class MessageComposerScreen extends TelegraphScreen {
         int clearButtonWidth = Math.min(80, panelWidth / 5);
         int doneButtonWidth = Math.min(80, panelWidth / 5);
 
-        copyButton = Buttons.create(Text.literal("Copy to Clipboard"),
+        copyButton = Buttons.create(Component.literal("Copy to Clipboard"),
                 panelX + layout.padding, bottomButtonY, copyButtonWidth, layout, button -> {
                     String message = getFormattedMessage();
-                    if (client != null) {
-                        client.keyboard.setClipboard(message);
+                    if (minecraft != null) {
+                        minecraft.keyboardHandler.setClipboard(message);
                         toastManager.success("Copied to clipboard!");
                     }
                 });
-        addDrawableChild(copyButton);
+        addRenderableWidget(copyButton);
 
-        clearButton = Buttons.create(Text.literal("Clear"),
+        clearButton = Buttons.create(Component.literal("Clear"),
                 panelX + layout.padding + copyButtonWidth + layout.spacing, bottomButtonY,
                 clearButtonWidth, layout, button -> {
                     if (messageField != null) {
-                        messageField.setText("");
+                        messageField.setValue("");
                     }
                 });
-        addDrawableChild(clearButton);
+        addRenderableWidget(clearButton);
 
-        doneButton = Buttons.create(Text.literal("Done"),
+        doneButton = Buttons.create(Component.literal("Done"),
                 panelX + panelWidth - layout.padding - doneButtonWidth, bottomButtonY,
-                doneButtonWidth, layout, button -> close());
-        addDrawableChild(doneButton);
+                doneButtonWidth, layout, button -> onClose());
+        addRenderableWidget(doneButton);
 
         updateColorButtons();
     }
@@ -152,14 +153,14 @@ public class MessageComposerScreen extends TelegraphScreen {
         int templateY = y;
         int templateWidth = Math.min(200, panelWidth - layout.padding * 2);
         for (String template : templates) {
-            ButtonWidget templateBtn = Buttons.create(Text.literal(template),
+            Button templateBtn = Buttons.create(Component.literal(template),
                     panelX + layout.padding, templateY, templateWidth, layout, button -> {
                         if (messageField != null) {
-                            messageField.setText(template);
+                            messageField.setValue(template);
                         }
                     });
 
-            addDrawableChild(templateBtn);
+            addRenderableWidget(templateBtn);
             templateButtons.add(templateBtn);
             templateY += layout.buttonHeight + 2;
         }
@@ -175,7 +176,7 @@ public class MessageComposerScreen extends TelegraphScreen {
     }
 
     private String getFormattedMessage() {
-        String message = messageField != null ? messageField.getText() : "";
+        String message = messageField != null ? messageField.getValue() : "";
 
         if (settings.getProtocol() instanceof CarniteProtocol) {
             return "[" + selectedBannerColor.toUpperCase() + " BANNER] " + message;
@@ -185,68 +186,68 @@ public class MessageComposerScreen extends TelegraphScreen {
     }
 
     @Override
-    protected void renderPanels(DrawContext context, int mouseX, int mouseY, float delta) {
+    protected void renderPanels(GuiGraphics context, int mouseX, int mouseY, float delta) {
         var centered = layout.centered(500);
         int panelX = centered.x;
         int panelWidth = centered.width;
 
         // Channel info
-        context.drawText(textRenderer, "Composing for: " + channel.getDisplayName(mapId),
+        context.drawString(font, "Composing for: " + channel.getDisplayName(mapId),
                 panelX + layout.padding, layout.margin, TelegraphTheme.TEXT_PRIMARY, false);
 
         String protocolName = settings.getProtocol() instanceof CarniteProtocol ? "Carnite Telegraphic" : "Map Telegraph";
-        context.drawText(textRenderer, "Protocol: " + protocolName,
+        context.drawString(font, "Protocol: " + protocolName,
                 panelX + layout.padding, layout.margin + 10, TelegraphTheme.TEXT_SECONDARY, false);
 
         // Section header
         int headerY = layout.margin + layout.headerHeight + layout.spacing + layout.controlHeight + layout.spacing;
         if (settings.getProtocol() instanceof CarniteProtocol) {
-            context.drawText(textRenderer, "Select Banner Color:",
+            context.drawString(font, "Select Banner Color:",
                     panelX + layout.padding, headerY, TelegraphTheme.TEXT_PRIMARY, false);
         } else {
-            context.drawText(textRenderer, "Quick Templates:",
+            context.drawString(font, "Quick Templates:",
                     panelX + layout.padding, headerY, TelegraphTheme.TEXT_PRIMARY, false);
 
             if (settings.getChannelType() != null) {
                 int typeColor = settings.getProtocol().getColorForChannelType(settings.getChannelType());
-                context.drawText(textRenderer, "Channel: " + settings.getChannelType(),
+                context.drawString(font, "Channel: " + settings.getChannelType(),
                         panelX + 150, headerY, typeColor, false);
             }
         }
     }
 
     @Override
-    protected void renderOverlays(DrawContext context, int mouseX, int mouseY, float delta) {
+    protected void renderOverlays(GuiGraphics context, int mouseX, int mouseY, float delta) {
         var centered = layout.centered(500);
         int panelX = centered.x;
         int panelWidth = centered.width;
 
         // Character count
-        if (messageField != null && !messageField.getText().isEmpty()) {
-            int length = messageField.getText().length();
+        if (messageField != null && !messageField.getValue().isEmpty()) {
+            int length = messageField.getValue().length();
             int color = length > MAX_RECOMMENDED_LENGTH ? TelegraphTheme.ERROR : TelegraphTheme.SUCCESS;
             String lengthText = length + " chars" + (length > MAX_RECOMMENDED_LENGTH ? " (recommended: \u226432)" : "");
-            context.drawText(textRenderer, lengthText,
-                    panelX + panelWidth - layout.padding - textRenderer.getWidth(lengthText),
+            context.drawString(font, lengthText,
+                    panelX + panelWidth - layout.padding - font.width(lengthText),
                     layout.margin + 10, color, false);
         }
 
         // Preview
         int previewY = height - layout.margin - layout.buttonHeight - layout.spacing - 20;
-        context.drawText(textRenderer, "Preview:", panelX + layout.padding, previewY, TelegraphTheme.TEXT_PRIMARY, false);
+        context.drawString(font, "Preview:", panelX + layout.padding, previewY, TelegraphTheme.TEXT_PRIMARY, false);
         String preview = getFormattedMessage();
-        context.drawText(textRenderer, preview, panelX + layout.padding + 60, previewY, TelegraphTheme.SELECTED, false);
+        context.drawString(font, preview, panelX + layout.padding + 60, previewY, TelegraphTheme.SELECTED, false);
 
         if (settings.getProtocol() instanceof CarniteProtocol) {
-            context.drawText(textRenderer, "Tip: Rename banner in anvil, place on map, right-click with map",
+            context.drawString(font, "Tip: Rename banner in anvil, place on map, right-click with map",
                     panelX + layout.padding, previewY - 15, TelegraphTheme.TEXT_SECONDARY, false);
         }
     }
 
     @Override
-    public void close() {
-        if (client != null) {
-            client.setScreen(parent);
+    public void onClose() {
+        if (minecraft != null) {
+            minecraft.setScreen(parent);
         }
     }
 }

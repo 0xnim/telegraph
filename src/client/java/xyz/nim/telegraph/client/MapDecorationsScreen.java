@@ -1,9 +1,10 @@
 package xyz.nim.telegraph.client;
 
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
+import xyz.nim.telegraph.client.ui.ConfirmDialog;
 import xyz.nim.telegraph.client.ui.DropdownWidget;
 import xyz.nim.telegraph.client.ui.KeyboardConstants;
 import xyz.nim.telegraph.client.ui.SettingsDialog;
@@ -33,25 +34,29 @@ public class MapDecorationsScreen extends TelegraphScreen {
     private MessageListWidget messageList;
 
     // Header buttons
-    private ButtonWidget editNameButton;
-    private ButtonWidget settingsButton;
+    private Button editNameButton;
+    private Button settingsButton;
 
     // Settings dialog
     private SettingsDialog settingsDialog;
 
     // Action bar
-    private ButtonWidget composeButton;
-    private ButtonWidget tradesButton;
-    private ButtonWidget viewToggleButton;
+    private Button composeButton;
+    private Button tradesButton;
+    private Button clearButton;
+    private Button viewToggleButton;
+
+    // Confirm dialog
+    private ConfirmDialog confirmDialog;
 
     // Left panel
     private final ChannelFilter channelFilter = new ChannelFilter();
-    private TextFieldWidget searchField;
+    private EditBox searchField;
     private DropdownWidget sortDropdown;
-    private ButtonWidget browseButton;
+    private Button browseButton;
 
     // Rename dialog state
-    private TextFieldWidget renameField;
+    private EditBox renameField;
     private boolean showingRenameDialog = false;
 
     private enum ViewTab {
@@ -66,12 +71,12 @@ public class MapDecorationsScreen extends TelegraphScreen {
     }
 
     public MapDecorationsScreen(TelegraphChannel channel) {
-        super(Text.literal("Map Decorations"));
+        super(Component.literal("Map Decorations"));
         this.channel = channel;
     }
 
     public MapDecorationsScreen(TelegraphChannel channel, int preselectedMapId) {
-        super(Text.literal("Map Decorations"));
+        super(Component.literal("Map Decorations"));
         this.channel = channel;
         this.selectedMapId = preselectedMapId;
     }
@@ -94,56 +99,56 @@ public class MapDecorationsScreen extends TelegraphScreen {
         int filterBarY = leftPanelY + layout.padding + layout.headerHeight;
 
         int searchWidth = leftPanelWidth - layout.padding * 2 - 50;
-        searchField = TextFields.search(textRenderer, leftPanelX + layout.padding, filterBarY, searchWidth, layout);
-        searchField.setChangedListener(text -> {
+        searchField = TextFields.search(font, leftPanelX + layout.padding, filterBarY, searchWidth, layout);
+        searchField.setResponder(text -> {
             channelFilter.setSearchText(text);
             updateChannelList();
         });
-        addDrawableChild(searchField);
+        addRenderableWidget(searchField);
 
-        browseButton = Buttons.create(Text.literal("..."),
+        browseButton = Buttons.create(Component.literal("..."),
             leftPanelX + layout.padding + searchWidth + 4, filterBarY, 40, layout, button -> {
-                if (client != null) {
-                    client.setScreen(new ChannelBrowserScreen(this, channel));
+                if (minecraft != null) {
+                    minecraft.setScreen(new ChannelBrowserScreen(this, channel));
                 }
             });
-        addDrawableChild(browseButton);
+        addRenderableWidget(browseButton);
 
         int sortY = filterBarY + layout.buttonHeight + 4;
         List<DropdownWidget.DropdownOption> sortOptions = Arrays.stream(ChannelSortOption.values())
             .map(opt -> new DropdownWidget.DropdownOption(opt.name(), opt.getLabel()))
             .collect(Collectors.toList());
-        sortDropdown = new DropdownWidget(client, leftPanelX + layout.padding, sortY,
+        sortDropdown = new DropdownWidget(minecraft, leftPanelX + layout.padding, sortY,
             leftPanelWidth - layout.padding * 2, layout.buttonHeight, sortOptions, value -> {
                 channelFilter.setSortOption(ChannelSortOption.valueOf(value));
                 updateChannelList();
             });
-        addDrawableChild(sortDropdown.getButton());
+        addRenderableWidget(sortDropdown.getButton());
 
         int channelListY = sortY + layout.buttonHeight + 4;
         int channelListHeight = leftPanelHeight - layout.padding * 2 - layout.headerHeight -
             layout.buttonHeight - 8 - layout.buttonHeight - 4 - // search + sort
             layout.buttonHeight - 4; // global settings button at bottom
         channelList = new ChannelListWidget(
-            client,
+            minecraft,
             leftPanelWidth - layout.padding * 2,
             channelListHeight,
             channelListY,
             layout.buttonHeight + 6
         );
         channelList.setX(leftPanelX + layout.padding);
-        addDrawableChild(channelList);
+        addRenderableWidget(channelList);
 
         int bottomButtonY = height - layout.margin - layout.padding - layout.buttonHeight;
 
-        ButtonWidget globalSettingsButton = Buttons.create(Text.literal("Global Settings"),
+        Button globalSettingsButton = Buttons.create(Component.literal("Global Settings"),
             leftPanelX + layout.padding, bottomButtonY,
             leftPanelWidth - layout.padding * 2, layout, button -> {
-                if (client != null) {
-                    client.setScreen(new GlobalSettingsScreen(this));
+                if (minecraft != null) {
+                    minecraft.setScreen(new GlobalSettingsScreen(this));
                 }
             });
-        addDrawableChild(globalSettingsButton);
+        addRenderableWidget(globalSettingsButton);
 
         int rightPanelX = splitLayout.rightX();
         int rightPanelY = layout.margin;
@@ -154,74 +159,82 @@ public class MapDecorationsScreen extends TelegraphScreen {
         int headerY = rightPanelY + layout.padding;
         int iconSize = layout.buttonHeight;
 
-        settingsButton = Buttons.small(Text.literal("\u2699"),
+        settingsButton = Buttons.small(Component.literal("\u2699"),
             rightPanelX + rightPanelWidth - layout.padding - iconSize, headerY, layout, button -> {
                 if (selectedMapId != -1) {
                     showSettingsDialog();
                 }
             });
-        addDrawableChild(settingsButton);
+        addRenderableWidget(settingsButton);
 
-        editNameButton = Buttons.small(Text.literal("\u270E"),
+        editNameButton = Buttons.small(Component.literal("\u270E"),
             rightPanelX + rightPanelWidth - layout.padding - iconSize * 2 - 4, headerY, layout, button -> {
                 if (selectedMapId != -1) {
                     showRenameDialog();
                 }
             });
-        addDrawableChild(editNameButton);
+        addRenderableWidget(editNameButton);
 
         // Action bar: Compose, Trades, and Raw/Messages toggle
         int actionBarY = rightPanelY + layout.headerHeight + layout.padding;
 
-        composeButton = Buttons.create(Text.literal("+ Compose"),
+        composeButton = Buttons.create(Component.literal("+ Compose"),
             rightPanelX + layout.padding, actionBarY, 90, layout, button -> {
-                if (selectedMapId != -1 && client != null) {
+                if (selectedMapId != -1 && minecraft != null) {
                     ChannelSettings settings = channel.getSettings(selectedMapId);
                     if (settings != null && settings.getProtocol() instanceof xyz.nim.telegraph.client.protocol.CarniteProtocol) {
-                        client.setScreen(new xyz.nim.telegraph.client.carnite.CarniteComposerScreen(this, channel, selectedMapId, settings));
+                        minecraft.setScreen(new xyz.nim.telegraph.client.carnite.CarniteComposerScreen(this, channel, selectedMapId, settings));
                     } else {
-                        client.setScreen(new MessageComposerScreen(this, channel, selectedMapId));
+                        minecraft.setScreen(new MessageComposerScreen(this, channel, selectedMapId));
                     }
                 }
             });
-        addDrawableChild(composeButton);
+        addRenderableWidget(composeButton);
 
-        tradesButton = Buttons.create(Text.literal("\u2696 Trades"),
+        tradesButton = Buttons.create(Component.literal("\u2696 Trades"),
             rightPanelX + layout.padding + 95, actionBarY, 80, layout, button -> {
-                if (client != null && xyz.nim.telegraph.client.trade.TradeManager.TRADES_ENABLED) {
-                    client.setScreen(new xyz.nim.telegraph.client.trade.TradesDashboardScreen(this, channel));
+                if (minecraft != null && xyz.nim.telegraph.client.trade.TradeManager.TRADES_ENABLED) {
+                    minecraft.setScreen(new xyz.nim.telegraph.client.trade.TradesDashboardScreen(this, channel));
                 }
             });
         tradesButton.active = xyz.nim.telegraph.client.trade.TradeManager.TRADES_ENABLED;
-        addDrawableChild(tradesButton);
+        addRenderableWidget(tradesButton);
+
+        clearButton = Buttons.create(Component.literal("\u00D7 Clear"),
+            rightPanelX + layout.padding + 180, actionBarY, 70, layout, button -> {
+                if (selectedMapId != -1) {
+                    showClearConfirmDialog();
+                }
+            });
+        addRenderableWidget(clearButton);
 
         // View toggle (Raw / Messages)
-        viewToggleButton = Buttons.create(Text.literal(getToggleLabel()),
+        viewToggleButton = Buttons.create(Component.literal(getToggleLabel()),
             rightPanelX + rightPanelWidth - layout.padding - 100, actionBarY, 100, layout, button -> {
                 currentTab = currentTab == ViewTab.MESSAGES ? ViewTab.RAW : ViewTab.MESSAGES;
-                viewToggleButton.setMessage(Text.literal(getToggleLabel()));
+                viewToggleButton.setMessage(Component.literal(getToggleLabel()));
                 updateMessageList();
             });
-        addDrawableChild(viewToggleButton);
+        addRenderableWidget(viewToggleButton);
 
         // Rename field (hidden by default, shown in inline edit mode)
-        renameField = TextFields.input(textRenderer, 0, 0, 200, layout, "Channel name...", 32);
+        renameField = TextFields.input(font, 0, 0, 200, layout, "Channel name...", 32);
         renameField.visible = false;
-        addDrawableChild(renameField);
+        addRenderableWidget(renameField);
 
         // Message list starts below action bar
         int messageListY = actionBarY + layout.buttonHeight + 4;
         int messageListHeight = rightPanelHeight - layout.padding * 2 - layout.buttonHeight - 4 - layout.headerHeight;
 
         messageList = new MessageListWidget(
-            client,
+            minecraft,
             rightPanelWidth - layout.padding * 2,
             messageListHeight,
             messageListY,
             24
         );
         messageList.setX(rightPanelX + layout.padding);
-        addDrawableChild(messageList);
+        addRenderableWidget(messageList);
 
         updateChannelList();
         updateMessageList();
@@ -310,7 +323,7 @@ public class MapDecorationsScreen extends TelegraphScreen {
         ));
 
         settingsDialog = new SettingsDialog("Channel Settings", rows, () -> {});
-        settingsDialog.show(width, height, this::addDrawableChild);
+        settingsDialog.show(width, height, this::addRenderableWidget);
     }
 
     private String getToggleLabel() {
@@ -332,7 +345,7 @@ public class MapDecorationsScreen extends TelegraphScreen {
         renameField.setX(rightPanelX + layout.padding);
         renameField.setY(layout.margin + layout.padding);
         renameField.setWidth(fieldWidth);
-        renameField.setText(currentName);
+        renameField.setValue(currentName);
         renameField.visible = true;
         renameField.setFocused(true);
         showingRenameDialog = true;
@@ -341,7 +354,7 @@ public class MapDecorationsScreen extends TelegraphScreen {
     private void commitRename() {
         if (selectedMapId == -1 || renameField == null) return;
 
-        String newName = renameField.getText().trim();
+        String newName = renameField.getValue().trim();
         if (!newName.isEmpty()) {
             channel.setUserChannelName(selectedMapId, newName);
             updateChannelList();
@@ -352,15 +365,43 @@ public class MapDecorationsScreen extends TelegraphScreen {
 
     private void cancelRename() {
         if (renameField != null) {
-            renameField.setText("");
+            renameField.setValue("");
             renameField.visible = false;
             renameField.setFocused(false);
         }
         showingRenameDialog = false;
     }
 
+    private void showClearConfirmDialog() {
+        confirmDialog = new ConfirmDialog(
+            "Clear History",
+            "Clear all messages for this channel?",
+            () -> {
+                channel.clearMessages(selectedMapId);
+                TelegraphClient.getPersistenceManager().saveMessages(channel);
+                updateMessageList();
+                toastManager.success("Channel history cleared");
+            }
+        );
+        confirmDialog.show(width, height, this::addRenderableWidget);
+    }
+
+    private void showDeleteMessageDialog(TelegraphMessage message) {
+        confirmDialog = new ConfirmDialog(
+            "Delete Message",
+            "Delete this message?",
+            () -> {
+                channel.removeMessage(selectedMapId, message);
+                TelegraphClient.getPersistenceManager().saveMessages(channel);
+                updateMessageList();
+                updateChannelList();
+            }
+        );
+        confirmDialog.show(width, height, this::addRenderableWidget);
+    }
+
     @Override
-    protected void renderPanels(DrawContext context, int mouseX, int mouseY, float delta) {
+    protected void renderPanels(GuiGraphics context, int mouseX, int mouseY, float delta) {
         var splitLayout = layout.split(0.25f);
         int leftPanelX = layout.margin;
         int leftPanelY = layout.margin;
@@ -370,7 +411,7 @@ public class MapDecorationsScreen extends TelegraphScreen {
         drawPanel(context, leftPanelX, leftPanelY, leftPanelWidth, leftPanelHeight);
         context.fill(leftPanelX + 1, leftPanelY + 1, leftPanelX + leftPanelWidth - 1,
             leftPanelY + layout.headerHeight, TelegraphTheme.HEADER_BG);
-        context.drawText(textRenderer, "Channels", leftPanelX + layout.padding, leftPanelY + layout.padding, TelegraphTheme.TEXT_PRIMARY, false);
+        context.drawString(font, "Channels", leftPanelX + layout.padding, leftPanelY + layout.padding, TelegraphTheme.TEXT_PRIMARY, false);
 
         int rightPanelX = splitLayout.rightX();
         int rightPanelY = layout.margin;
@@ -385,9 +426,9 @@ public class MapDecorationsScreen extends TelegraphScreen {
         if (!showingRenameDialog) {
             if (selectedMapId != -1) {
                 String channelName = channel.getDisplayName(selectedMapId);
-                context.drawText(textRenderer, "\u00A7f" + channelName, rightPanelX + layout.padding, rightPanelY + layout.padding, TelegraphTheme.TEXT_PRIMARY, false);
+                context.drawString(font, "\u00A7f" + channelName, rightPanelX + layout.padding, rightPanelY + layout.padding, TelegraphTheme.TEXT_PRIMARY, false);
             } else {
-                context.drawText(textRenderer, "\u00A78No channel selected", rightPanelX + layout.padding, rightPanelY + layout.padding, TelegraphTheme.TEXT_MUTED, false);
+                context.drawString(font, "\u00A78No channel selected", rightPanelX + layout.padding, rightPanelY + layout.padding, TelegraphTheme.TEXT_MUTED, false);
             }
         }
 
@@ -395,20 +436,27 @@ public class MapDecorationsScreen extends TelegraphScreen {
         editNameButton.active = selectedMapId != -1;
         settingsButton.active = selectedMapId != -1;
         composeButton.active = selectedMapId != -1;
+        clearButton.active = selectedMapId != -1 && !channel.getMessages(selectedMapId).isEmpty();
     }
 
     @Override
-    protected void renderOverlays(DrawContext context, int mouseX, int mouseY, float delta) {
+    protected void renderOverlays(GuiGraphics context, int mouseX, int mouseY, float delta) {
         if (sortDropdown != null) {
             sortDropdown.render(context, mouseX, mouseY, delta);
         }
         if (settingsDialog != null && settingsDialog.isVisible()) {
-            settingsDialog.render(context, textRenderer, mouseX, mouseY);
+            settingsDialog.render(context, font, mouseX, mouseY);
+        }
+        if (confirmDialog != null && confirmDialog.isVisible()) {
+            confirmDialog.render(context, font, mouseX, mouseY);
         }
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (confirmDialog != null && confirmDialog.isVisible()) {
+            return confirmDialog.mouseClicked(mouseX, mouseY, button);
+        }
         if (settingsDialog != null && settingsDialog.isVisible()) {
             return settingsDialog.mouseClicked(mouseX, mouseY, button);
         }
@@ -428,6 +476,11 @@ public class MapDecorationsScreen extends TelegraphScreen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        // Handle confirm dialog
+        if (confirmDialog != null && confirmDialog.isVisible()) {
+            return confirmDialog.keyPressed(keyCode, scanCode, modifiers);
+        }
+
         // Handle settings dialog
         if (settingsDialog != null && settingsDialog.isVisible()) {
             return settingsDialog.keyPressed(keyCode, scanCode, modifiers);
@@ -447,7 +500,7 @@ public class MapDecorationsScreen extends TelegraphScreen {
 
         if (searchField != null && searchField.isFocused()) {
             if (keyCode == KeyboardConstants.KEY_ESCAPE) {
-                searchField.setText("");
+                searchField.setValue("");
                 searchField.setFocused(false);
                 channelFilter.setSearchText("");
                 updateChannelList();
@@ -466,7 +519,7 @@ public class MapDecorationsScreen extends TelegraphScreen {
         if (keyCode == KeyboardConstants.KEY_TAB) {
             currentTab = currentTab == ViewTab.MESSAGES ? ViewTab.RAW : ViewTab.MESSAGES;
             if (viewToggleButton != null) {
-                viewToggleButton.setMessage(Text.literal(getToggleLabel()));
+                viewToggleButton.setMessage(Component.literal(getToggleLabel()));
             }
             updateMessageList();
             return true;
@@ -484,7 +537,7 @@ public class MapDecorationsScreen extends TelegraphScreen {
         for (int mapId : filteredIds) {
             TelegraphChannel.ChannelMetadata metadata = channel.getMetadata(mapId);
             channelList.addEntryToList(new ChannelEntry(
-                client,
+                minecraft,
                 mapId,
                 metadata.displayName(),
                 mapId == selectedMapId,
@@ -516,7 +569,7 @@ public class MapDecorationsScreen extends TelegraphScreen {
         messageList.clearEntries();
 
         if (selectedMapId == -1) {
-            messageList.addEntryToList(new MessageEntry(client, "No map selected", TelegraphTheme.TEXT_SECONDARY, null));
+            messageList.addEntryToList(new MessageEntry(minecraft, "No map selected", TelegraphTheme.TEXT_SECONDARY, null));
             return;
         }
 
@@ -524,7 +577,7 @@ public class MapDecorationsScreen extends TelegraphScreen {
         messages.sort((a, b) -> b.timestamp().compareTo(a.timestamp()));
 
         if (messages.isEmpty()) {
-            messageList.addEntryToList(new MessageEntry(client, "No messages recorded", TelegraphTheme.TEXT_SECONDARY, null));
+            messageList.addEntryToList(new MessageEntry(minecraft, "No messages recorded", TelegraphTheme.TEXT_SECONDARY, null));
             return;
         }
 
@@ -545,13 +598,13 @@ public class MapDecorationsScreen extends TelegraphScreen {
                     tooltip = tense + "\n" + expanded;
                 }
 
-                messageList.addEntryToList(new MessageEntry(client, fullMessage, typeColor, tooltip));
+                messageList.addEntryToList(new MessageEntry(minecraft, fullMessage, typeColor, tooltip, null, message));
             }
         } else {
             List<FormattedMapMessage> formattedMessages = extractMapMessages(messages);
 
             if (formattedMessages.isEmpty()) {
-                messageList.addEntryToList(new MessageEntry(client, "No banner messages on this map", TelegraphTheme.TEXT_SECONDARY, null));
+                messageList.addEntryToList(new MessageEntry(minecraft, "No banner messages on this map", TelegraphTheme.TEXT_SECONDARY, null));
             } else {
                 ChannelSettings settings = channel.getSettings(selectedMapId);
                 boolean isCarnite = settings != null && settings.getProtocol() instanceof xyz.nim.telegraph.client.protocol.CarniteProtocol;
@@ -624,7 +677,7 @@ public class MapDecorationsScreen extends TelegraphScreen {
                         }
                     }
 
-                    messageList.addEntryToList(new MessageEntry(client, displayText, TelegraphTheme.TEXT_PRIMARY, tooltip, translation));
+                    messageList.addEntryToList(new MessageEntry(minecraft, displayText, TelegraphTheme.TEXT_PRIMARY, tooltip, translation, msg.originalMessage()));
                 }
             }
         }
@@ -650,7 +703,8 @@ public class MapDecorationsScreen extends TelegraphScreen {
                         bannerColor,
                         message.decoration().x(),
                         message.decoration().z(),
-                        message.timestamp()
+                        message.timestamp(),
+                        message
                     ));
                 }
             }
@@ -681,7 +735,7 @@ public class MapDecorationsScreen extends TelegraphScreen {
         return "\u00A7f";
     }
 
-    private record FormattedMapMessage(String name, String bannerType, double x, double z, java.time.Instant timestamp) {}
+    private record FormattedMapMessage(String name, String bannerType, double x, double z, java.time.Instant timestamp, TelegraphMessage originalMessage) {}
 
     private int getColorForType(TelegraphMessage.ChangeType type) {
         if (type == null) return TelegraphTheme.TEXT_SECONDARY;
@@ -702,20 +756,20 @@ public class MapDecorationsScreen extends TelegraphScreen {
     }
 
     private class ChannelListWidget extends TelegraphListWidget<ChannelEntry> {
-        public ChannelListWidget(net.minecraft.client.MinecraftClient client, int width, int height, int y, int itemHeight) {
+        public ChannelListWidget(net.minecraft.client.Minecraft client, int width, int height, int y, int itemHeight) {
             super(client, width, height, y, itemHeight);
         }
     }
 
     private class ChannelEntry extends TelegraphListWidget.Entry<ChannelEntry> {
-        private final net.minecraft.client.MinecraftClient client;
+        private final net.minecraft.client.Minecraft client;
         private final int mapId;
         private final String displayName;
         private final boolean selected;
         private final java.util.function.Consumer<Integer> onSelect;
         private final TelegraphChannel.ChannelMetadata metadata;
 
-        public ChannelEntry(net.minecraft.client.MinecraftClient client, int mapId, String displayName, boolean selected,
+        public ChannelEntry(net.minecraft.client.Minecraft client, int mapId, String displayName, boolean selected,
                            java.util.function.Consumer<Integer> onSelect, TelegraphChannel.ChannelMetadata metadata) {
             this.client = client;
             this.mapId = mapId;
@@ -726,29 +780,29 @@ public class MapDecorationsScreen extends TelegraphScreen {
         }
 
         @Override
-        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight,
+        public void render(GuiGraphics context, int index, int y, int x, int entryWidth, int entryHeight,
                           int mouseX, int mouseY, boolean hovered, float tickDelta) {
 
             renderBackground(context, x, y, entryWidth, entryHeight, hovered, selected);
 
             int textColor = selected ? TelegraphTheme.SELECTED : TelegraphTheme.TEXT_PRIMARY;
-            context.drawText(client.textRenderer, displayName, x + 4, y + 2, textColor, false);
+            context.drawString(client.font, displayName, x + 4, y + 2, textColor, false);
 
             if (metadata != null) {
                 int rightOffset = 8;
 
                 if (metadata.unreadCount() > 0) {
                     String unreadText = metadata.unreadCount() > 99 ? "99+" : String.valueOf(metadata.unreadCount());
-                    int unreadWidth = client.textRenderer.getWidth(unreadText) + 6;
+                    int unreadWidth = client.font.width(unreadText) + 6;
                     context.fill(x + entryWidth - unreadWidth - rightOffset, y + 2, x + entryWidth - rightOffset, y + 12, TelegraphTheme.ERROR);
-                    context.drawText(client.textRenderer, unreadText, x + entryWidth - unreadWidth - rightOffset + 3, y + 3, TelegraphTheme.TEXT_PRIMARY, false);
+                    context.drawString(client.font, unreadText, x + entryWidth - unreadWidth - rightOffset + 3, y + 3, TelegraphTheme.TEXT_PRIMARY, false);
                     rightOffset += unreadWidth + 4;
                 }
 
                 String countText = String.valueOf(metadata.messageCount());
-                int countWidth = client.textRenderer.getWidth(countText) + 4;
+                int countWidth = client.font.width(countText) + 4;
                 context.fill(x + entryWidth - countWidth - rightOffset, y + 2, x + entryWidth - rightOffset, y + 12, 0x60555555);
-                context.drawText(client.textRenderer, countText, x + entryWidth - countWidth - rightOffset + 2, y + 3, TelegraphTheme.TEXT_SECONDARY, false);
+                context.drawString(client.font, countText, x + entryWidth - countWidth - rightOffset + 2, y + 3, TelegraphTheme.TEXT_SECONDARY, false);
 
                 boolean isActive = metadata.lastActivity() != null &&
                     metadata.lastActivity().isAfter(Instant.now().minus(Duration.ofHours(24)));
@@ -767,13 +821,13 @@ public class MapDecorationsScreen extends TelegraphScreen {
         }
 
         @Override
-        public Text getNarration() {
-            return Text.literal(displayName);
+        public Component getNarration() {
+            return Component.literal(displayName);
         }
     }
 
     private class MessageListWidget extends TelegraphListWidget<MessageEntry> {
-        public MessageListWidget(net.minecraft.client.MinecraftClient client, int width, int height, int y, int itemHeight) {
+        public MessageListWidget(net.minecraft.client.Minecraft client, int width, int height, int y, int itemHeight) {
             super(client, width, height, y, itemHeight);
         }
     }
@@ -783,59 +837,99 @@ public class MapDecorationsScreen extends TelegraphScreen {
         private final int color;
         private final String tooltip;
         private final String translation;
-        private final net.minecraft.client.MinecraftClient client;
+        private final net.minecraft.client.Minecraft client;
+        private final TelegraphMessage telegraphMessage;
 
-        public MessageEntry(net.minecraft.client.MinecraftClient client, String message, int color, String tooltip) {
-            this(client, message, color, tooltip, null);
+        private static final int DELETE_BUTTON_SIZE = 16;
+
+        public MessageEntry(net.minecraft.client.Minecraft client, String message, int color, String tooltip) {
+            this(client, message, color, tooltip, null, null);
         }
 
-        public MessageEntry(net.minecraft.client.MinecraftClient client, String message, int color, String tooltip, String translation) {
+        public MessageEntry(net.minecraft.client.Minecraft client, String message, int color, String tooltip, String translation) {
+            this(client, message, color, tooltip, translation, null);
+        }
+
+        public MessageEntry(net.minecraft.client.Minecraft client, String message, int color, String tooltip, String translation, TelegraphMessage telegraphMessage) {
             this.client = client;
             this.message = message;
             this.color = color;
             this.tooltip = tooltip;
             this.translation = translation;
+            this.telegraphMessage = telegraphMessage;
         }
 
         @Override
-        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight,
+        public void render(GuiGraphics context, int index, int y, int x, int entryWidth, int entryHeight,
                           int mouseX, int mouseY, boolean hovered, float tickDelta) {
-            context.drawText(client.textRenderer, message, x + 4, y + 2, color, false);
+            context.drawString(client.font, message, x + 4, y + 2, color, false);
 
             if (translation != null && !translation.isEmpty()) {
                 String translationPrefix = "  -> ";
                 String truncatedTranslation = translation;
 
                 int maxWidth = entryWidth - 30;
-                if (client.textRenderer.getWidth(translationPrefix + translation) > maxWidth) {
-                    while (client.textRenderer.getWidth(translationPrefix + truncatedTranslation + "...") > maxWidth && truncatedTranslation.length() > 10) {
+                if (client.font.width(translationPrefix + translation) > maxWidth) {
+                    while (client.font.width(translationPrefix + truncatedTranslation + "...") > maxWidth && truncatedTranslation.length() > 10) {
                         truncatedTranslation = truncatedTranslation.substring(0, truncatedTranslation.length() - 1);
                     }
                     truncatedTranslation += "...";
                 }
 
-                context.drawText(client.textRenderer, translationPrefix + truncatedTranslation, x + 4, y + 12, TelegraphTheme.TEXT_SECONDARY, false);
+                context.drawString(client.font, translationPrefix + truncatedTranslation, x + 4, y + 12, TelegraphTheme.TEXT_SECONDARY, false);
+            }
+
+            if (hovered && telegraphMessage != null) {
+                int deleteX = x + entryWidth - DELETE_BUTTON_SIZE - 4;
+                int deleteY = y + (entryHeight - DELETE_BUTTON_SIZE) / 2;
+
+                boolean deleteHovered = mouseX >= deleteX && mouseX <= deleteX + DELETE_BUTTON_SIZE &&
+                                       mouseY >= deleteY && mouseY <= deleteY + DELETE_BUTTON_SIZE;
+
+                int bgColor = deleteHovered ? 0x80FF5555 : 0x60555555;
+                context.fill(deleteX, deleteY, deleteX + DELETE_BUTTON_SIZE, deleteY + DELETE_BUTTON_SIZE, bgColor);
+                int textColor = deleteHovered ? TelegraphTheme.TEXT_PRIMARY : TelegraphTheme.TEXT_SECONDARY;
+                context.drawCenteredString(client.font, "\u00D7", deleteX + DELETE_BUTTON_SIZE / 2, deleteY + 4, textColor);
             }
 
             if (hovered && tooltip != null && mouseX >= x && mouseX <= x + entryWidth && mouseY >= y && mouseY <= y + entryHeight) {
-                List<Text> tooltipLines = new ArrayList<>();
+                List<Component> tooltipLines = new ArrayList<>();
                 for (String line : tooltip.split("\n")) {
-                    tooltipLines.add(Text.literal(line));
+                    tooltipLines.add(Component.literal(line));
                 }
 
-                if (translation != null && !translation.isEmpty() && client.textRenderer.getWidth("  -> " + translation) > (entryWidth - 30)) {
-                    tooltipLines.add(Text.literal(""));
-                    tooltipLines.add(Text.literal("Full Translation:"));
-                    tooltipLines.add(Text.literal(translation));
+                if (translation != null && !translation.isEmpty() && client.font.width("  -> " + translation) > (entryWidth - 30)) {
+                    tooltipLines.add(Component.literal(""));
+                    tooltipLines.add(Component.literal("Full Translation:"));
+                    tooltipLines.add(Component.literal(translation));
                 }
 
-                context.drawTooltip(client.textRenderer, tooltipLines, mouseX, mouseY);
+                MapDecorationsScreen.this.setTooltipForNextRenderPass(tooltipLines, mouseX, mouseY);
             }
         }
 
         @Override
-        public Text getNarration() {
-            return Text.literal(message);
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (button == 0 && telegraphMessage != null) {
+                var widget = MapDecorationsScreen.this.messageList;
+                if (widget != null) {
+                    int entryX = widget.getX();
+                    int entryWidth = widget.getRowWidth();
+                    int deleteX = entryX + entryWidth - DELETE_BUTTON_SIZE - 4;
+                    int deleteSize = DELETE_BUTTON_SIZE;
+
+                    if (mouseX >= deleteX && mouseX <= deleteX + deleteSize) {
+                        showDeleteMessageDialog(telegraphMessage);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public Component getNarration() {
+            return Component.literal(message);
         }
     }
 }

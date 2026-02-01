@@ -1,7 +1,7 @@
 package xyz.nim.telegraph.client.trade;
 
 import com.google.gson.*;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import xyz.nim.telegraph.client.WorldIdentifier;
 
 import java.io.*;
@@ -26,10 +26,10 @@ public class TradePersistence {
             return null;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) return null;
 
-        Path configPath = client.runDirectory.toPath()
+        Path configPath = client.gameDirectory.toPath()
             .resolve(CONFIG_DIR)
             .resolve("worlds")
             .resolve(worldId);
@@ -40,69 +40,69 @@ public class TradePersistence {
         }
         return configPath;
     }
-    
+
     public void saveTradeStatuses(List<TradeOffer> trades) {
         Path configDir = getConfigDir();
         if (configDir == null) return;
-        
+
         Path tradesPath = configDir.resolve(TRADES_FILE);
-        
+
         try {
             List<Map<String, Object>> serialized = new ArrayList<>();
-            
+
             for (TradeOffer trade : trades) {
                 Map<String, Object> tradeData = new HashMap<>();
                 tradeData.put("channelId", trade.getChannelId());
                 tradeData.put("originalMessage", trade.getOriginalMessage());
                 tradeData.put("timestamp", trade.getTimestamp().toString());
                 tradeData.put("status", trade.getStatus().name());
-                
+
                 serialized.add(tradeData);
             }
-            
+
             String json = gson.toJson(serialized);
             Files.writeString(tradesPath, json);
-            
+
         } catch (IOException e) {
             System.err.println("Failed to save trade statuses: " + e.getMessage());
         }
     }
-    
+
     public Map<String, TradeStatus> loadTradeStatuses() {
         Path configDir = getConfigDir();
         if (configDir == null) return new HashMap<>();
-        
+
         Path tradesPath = configDir.resolve(TRADES_FILE);
-        
+
         if (!Files.exists(tradesPath)) {
             return new HashMap<>();
         }
-        
+
         try {
             String json = Files.readString(tradesPath);
             JsonArray array = JsonParser.parseString(json).getAsJsonArray();
-            
+
             Map<String, TradeStatus> statuses = new HashMap<>();
-            
+
             for (JsonElement element : array) {
                 JsonObject obj = element.getAsJsonObject();
-                
+
                 int channelId = obj.get("channelId").getAsInt();
                 String originalMessage = obj.get("originalMessage").getAsString();
                 String statusStr = obj.get("status").getAsString();
-                
+
                 String key = channelId + ":" + originalMessage;
                 statuses.put(key, TradeStatus.valueOf(statusStr));
             }
-            
+
             return statuses;
-            
+
         } catch (IOException e) {
             System.err.println("Failed to load trade statuses: " + e.getMessage());
             return new HashMap<>();
         }
     }
-    
+
     public static String getTradeKey(TradeOffer trade) {
         return trade.getChannelId() + ":" + trade.getOriginalMessage();
     }

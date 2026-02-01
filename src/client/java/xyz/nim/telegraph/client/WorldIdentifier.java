@@ -1,34 +1,34 @@
 package xyz.nim.telegraph.client;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ServerInfo;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ServerData;
 
 import java.util.Optional;
 
 public class WorldIdentifier {
 
     public static Optional<String> getCurrentWorldId() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) {
             return Optional.empty();
         }
 
-        if (client.isIntegratedServerRunning() && client.getServer() != null) {
-            String worldName = client.getServer().getSaveProperties().getLevelName();
+        if (client.hasSingleplayerServer() && client.getSingleplayerServer() != null) {
+            String worldName = client.getSingleplayerServer().getWorldData().getLevelName();
             return Optional.of(sanitizeForPath(worldName));
         }
 
-        ServerInfo serverInfo = client.getCurrentServerEntry();
+        ServerData serverInfo = client.getCurrentServer();
         if (serverInfo != null) {
-            return Optional.of(sanitizeForPath(serverInfo.address));
+            return Optional.of(sanitizeForPath(serverInfo.ip));
         }
 
         return Optional.empty();
     }
 
     public static boolean isInWorld() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        return client != null && client.world != null && client.player != null;
+        Minecraft client = Minecraft.getInstance();
+        return client != null && client.level != null && client.player != null;
     }
 
     private static String sanitizeForPath(String input) {

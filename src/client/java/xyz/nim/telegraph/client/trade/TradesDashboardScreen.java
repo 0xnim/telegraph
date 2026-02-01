@@ -1,10 +1,10 @@
 package xyz.nim.telegraph.client.trade;
 
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
 import xyz.nim.telegraph.client.ChannelSettings;
 import xyz.nim.telegraph.client.TelegraphChannel;
 import xyz.nim.telegraph.client.carnite.CarniteComposerScreen;
@@ -24,26 +24,26 @@ public class TradesDashboardScreen extends TelegraphScreen {
     private final TradeManager tradeManager;
 
     private TradeListWidget tradeList;
-    private TextFieldWidget searchField;
-    private ButtonWidget refreshButton;
-    private ButtonWidget newTradeButton;
-    private ButtonWidget backButton;
-    private ButtonWidget allTradesButton;
-    private ButtonWidget myTradesButton;
-    private ButtonWidget incomingButton;
-    private ButtonWidget openStatusButton;
-    private ButtonWidget acceptedStatusButton;
-    private ButtonWidget allStatusButton;
+    private EditBox searchField;
+    private Button refreshButton;
+    private Button newTradeButton;
+    private Button backButton;
+    private Button allTradesButton;
+    private Button myTradesButton;
+    private Button incomingButton;
+    private Button openStatusButton;
+    private Button acceptedStatusButton;
+    private Button allStatusButton;
 
     private TradeOffer selectedTrade;
     private TradeManager.TradeFilter currentFilter;
     private FilterMode filterMode = FilterMode.ALL;
     private StatusFilter statusFilter = StatusFilter.ALL;
 
-    private ButtonWidget acceptButton;
-    private ButtonWidget declineButton;
-    private ButtonWidget counterButton;
-    private ButtonWidget markOpenButton;
+    private Button acceptButton;
+    private Button declineButton;
+    private Button counterButton;
+    private Button markOpenButton;
 
     private enum FilterMode {
         ALL("All Trades"),
@@ -64,7 +64,7 @@ public class TradesDashboardScreen extends TelegraphScreen {
     }
 
     public TradesDashboardScreen(Screen parent, TelegraphChannel channel) {
-        super(Text.literal("Trades Dashboard"));
+        super(Component.literal("Trades Dashboard"));
         this.parent = parent;
         this.channel = channel;
         this.tradeManager = new TradeManager(channel);
@@ -79,27 +79,27 @@ public class TradesDashboardScreen extends TelegraphScreen {
         int topBarHeight = layout.buttonHeight + layout.padding * 2;
 
         // Top bar buttons
-        backButton = Buttons.back(layout.margin + layout.padding, topBarY + layout.padding, layout, button -> close());
-        addDrawableChild(backButton);
+        backButton = Buttons.back(layout.margin + layout.padding, topBarY + layout.padding, layout, button -> onClose());
+        addRenderableWidget(backButton);
 
         int btnX = backButton.getX() + backButton.getWidth() + layout.spacing;
-        refreshButton = Buttons.create(Text.literal("\u21BB Refresh"), btnX, topBarY + layout.padding,
+        refreshButton = Buttons.create(Component.literal("\u21BB Refresh"), btnX, topBarY + layout.padding,
                 layout.smallButtonWidth + 20, layout, button -> refreshTrades());
-        addDrawableChild(refreshButton);
+        addRenderableWidget(refreshButton);
 
         btnX += refreshButton.getWidth() + layout.spacing;
-        newTradeButton = Buttons.create(Text.literal("+ New Trade"), btnX, topBarY + layout.padding,
+        newTradeButton = Buttons.create(Component.literal("+ New Trade"), btnX, topBarY + layout.padding,
                 layout.buttonWidth, layout, button -> openNewTradeComposer());
-        addDrawableChild(newTradeButton);
+        addRenderableWidget(newTradeButton);
 
         int searchWidth = Math.min(150, layout.contentWidth() / 5);
-        searchField = TextFields.search(textRenderer, width - layout.margin - layout.padding - searchWidth,
+        searchField = TextFields.search(font, width - layout.margin - layout.padding - searchWidth,
                 topBarY + layout.padding, searchWidth, layout);
-        searchField.setChangedListener(text -> {
+        searchField.setResponder(text -> {
             currentFilter.setSearchText(text);
             updateTradeList();
         });
-        addDrawableChild(searchField);
+        addRenderableWidget(searchField);
 
         // Filter bar
         int filterBarY = topBarY + topBarHeight + layout.spacing;
@@ -108,58 +108,58 @@ public class TradesDashboardScreen extends TelegraphScreen {
         int statusButtonWidth = Math.min(60, layout.contentWidth() / 10);
 
         int filterX = layout.margin + layout.padding;
-        allTradesButton = Buttons.toggle(Text.literal("All Trades"), filterX, filterBarY + layout.padding,
+        allTradesButton = Buttons.toggle(Component.literal("All Trades"), filterX, filterBarY + layout.padding,
                 filterButtonWidth, layout.buttonHeight, filterMode != FilterMode.ALL, button -> {
                     filterMode = FilterMode.ALL;
                     updateFilterButtons();
                     applyFilters();
                 });
-        addDrawableChild(allTradesButton);
+        addRenderableWidget(allTradesButton);
 
         filterX += filterButtonWidth + layout.spacing;
-        myTradesButton = Buttons.toggle(Text.literal("My Trades"), filterX, filterBarY + layout.padding,
+        myTradesButton = Buttons.toggle(Component.literal("My Trades"), filterX, filterBarY + layout.padding,
                 filterButtonWidth, layout.buttonHeight, filterMode != FilterMode.MY_TRADES, button -> {
                     filterMode = FilterMode.MY_TRADES;
                     updateFilterButtons();
                     applyFilters();
                 });
-        addDrawableChild(myTradesButton);
+        addRenderableWidget(myTradesButton);
 
         filterX += filterButtonWidth + layout.spacing;
-        incomingButton = Buttons.toggle(Text.literal("Incoming"), filterX, filterBarY + layout.padding,
+        incomingButton = Buttons.toggle(Component.literal("Incoming"), filterX, filterBarY + layout.padding,
                 filterButtonWidth, layout.buttonHeight, filterMode != FilterMode.INCOMING, button -> {
                     filterMode = FilterMode.INCOMING;
                     updateFilterButtons();
                     applyFilters();
                 });
-        addDrawableChild(incomingButton);
+        addRenderableWidget(incomingButton);
 
         filterX += filterButtonWidth + layout.spacing * 3;
-        allStatusButton = Buttons.toggle(Text.literal("All"), filterX, filterBarY + layout.padding,
+        allStatusButton = Buttons.toggle(Component.literal("All"), filterX, filterBarY + layout.padding,
                 statusButtonWidth, layout.buttonHeight, statusFilter != StatusFilter.ALL, button -> {
                     statusFilter = StatusFilter.ALL;
                     updateFilterButtons();
                     applyFilters();
                 });
-        addDrawableChild(allStatusButton);
+        addRenderableWidget(allStatusButton);
 
         filterX += statusButtonWidth + layout.spacing;
-        openStatusButton = Buttons.toggle(Text.literal("Open"), filterX, filterBarY + layout.padding,
+        openStatusButton = Buttons.toggle(Component.literal("Open"), filterX, filterBarY + layout.padding,
                 statusButtonWidth, layout.buttonHeight, statusFilter != StatusFilter.OPEN, button -> {
                     statusFilter = StatusFilter.OPEN;
                     updateFilterButtons();
                     applyFilters();
                 });
-        addDrawableChild(openStatusButton);
+        addRenderableWidget(openStatusButton);
 
         filterX += statusButtonWidth + layout.spacing;
-        acceptedStatusButton = Buttons.toggle(Text.literal("Accepted"), filterX, filterBarY + layout.padding,
+        acceptedStatusButton = Buttons.toggle(Component.literal("Accepted"), filterX, filterBarY + layout.padding,
                 statusButtonWidth + 20, layout.buttonHeight, statusFilter != StatusFilter.ACCEPTED, button -> {
                     statusFilter = StatusFilter.ACCEPTED;
                     updateFilterButtons();
                     applyFilters();
                 });
-        addDrawableChild(acceptedStatusButton);
+        addRenderableWidget(acceptedStatusButton);
 
         // Two-panel layout
         var split = layout.split(0.55f);
@@ -169,9 +169,9 @@ public class TradesDashboardScreen extends TelegraphScreen {
         int listY = leftPanelY + layout.padding + layout.headerHeight;
         int listHeight = leftPanelHeight - layout.padding * 2 - layout.headerHeight;
 
-        tradeList = new TradeListWidget(client, split.leftWidth() - layout.padding * 2, listHeight, listY, 60);
+        tradeList = new TradeListWidget(minecraft, split.leftWidth() - layout.padding * 2, listHeight, listY, 60);
         tradeList.setX(split.x() + layout.padding);
-        addDrawableChild(tradeList);
+        addRenderableWidget(tradeList);
 
         updateFilterButtons();
         refreshTrades();
@@ -197,8 +197,8 @@ public class TradesDashboardScreen extends TelegraphScreen {
             currentFilter.setStatus(TradeStatus.ACCEPTED);
         }
 
-        if (searchField != null && !searchField.getText().isEmpty()) {
-            currentFilter.setSearchText(searchField.getText());
+        if (searchField != null && !searchField.getValue().isEmpty()) {
+            currentFilter.setSearchText(searchField.getValue());
         }
 
         updateTradeList();
@@ -223,17 +223,17 @@ public class TradesDashboardScreen extends TelegraphScreen {
     }
 
     private void openNewTradeComposer() {
-        if (client == null) return;
+        if (minecraft == null) return;
 
         int firstChannelId = channel.getAllChannels().keySet().stream().findFirst().orElse(-1);
         if (firstChannelId == -1) return;
 
         ChannelSettings settings = channel.getOrCreateSettings(firstChannelId);
-        client.setScreen(new TradeComposerScreen(this, channel, firstChannelId, settings));
+        minecraft.setScreen(new TradeComposerScreen(this, channel, firstChannelId, settings));
     }
 
     @Override
-    protected void renderPanels(DrawContext context, int mouseX, int mouseY, float delta) {
+    protected void renderPanels(GuiGraphics context, int mouseX, int mouseY, float delta) {
         int topBarY = layout.margin;
         int topBarHeight = layout.buttonHeight + layout.padding * 2;
         drawPanel(context, layout.margin, topBarY, layout.contentWidth(), topBarHeight);
@@ -251,7 +251,7 @@ public class TradesDashboardScreen extends TelegraphScreen {
         context.fill(split.x() + layout.padding, leftPanelY + layout.padding,
                 split.x() + split.leftWidth() - layout.padding, leftPanelY + layout.padding + layout.headerHeight,
                 TelegraphTheme.HEADER_BG);
-        context.drawText(textRenderer, "Trade Offers", split.x() + layout.padding * 2,
+        context.drawString(font, "Trade Offers", split.x() + layout.padding * 2,
                 leftPanelY + layout.padding + (layout.headerHeight - 8) / 2, TelegraphTheme.TEXT_PRIMARY, false);
 
         // Right panel
@@ -261,12 +261,12 @@ public class TradesDashboardScreen extends TelegraphScreen {
         context.fill(rightPanelX + layout.padding, leftPanelY + layout.padding,
                 rightPanelX + rightPanelWidth - layout.padding, leftPanelY + layout.padding + layout.headerHeight,
                 TelegraphTheme.HEADER_BG);
-        context.drawText(textRenderer, "Trade Details", rightPanelX + layout.padding * 2,
+        context.drawString(font, "Trade Details", rightPanelX + layout.padding * 2,
                 leftPanelY + layout.padding + (layout.headerHeight - 8) / 2, TelegraphTheme.TEXT_PRIMARY, false);
     }
 
     @Override
-    protected void renderOverlays(DrawContext context, int mouseX, int mouseY, float delta) {
+    protected void renderOverlays(GuiGraphics context, int mouseX, int mouseY, float delta) {
         int topBarY = layout.margin;
         int topBarHeight = layout.buttonHeight + layout.padding * 2;
         int filterBarY = topBarY + topBarHeight + layout.spacing;
@@ -281,82 +281,82 @@ public class TradesDashboardScreen extends TelegraphScreen {
             renderTradeDetails(context, rightPanelX, leftPanelY, rightPanelWidth, leftPanelHeight);
         } else {
             int centerY = leftPanelY + leftPanelHeight / 2;
-            context.drawCenteredTextWithShadow(textRenderer, "Select a trade to view details",
+            context.drawCenteredString(font, "Select a trade to view details",
                     rightPanelX + rightPanelWidth / 2, centerY, TelegraphTheme.TEXT_MUTED);
         }
     }
 
-    private void renderTradeDetails(DrawContext context, int x, int y, int panelWidth, int panelHeight) {
+    private void renderTradeDetails(GuiGraphics context, int x, int y, int panelWidth, int panelHeight) {
         int contentX = x + layout.padding;
         int contentY = y + layout.headerHeight + layout.padding * 2;
 
         // Remove old action buttons
         if (acceptButton != null) {
-            remove(acceptButton);
-            remove(declineButton);
-            remove(counterButton);
-            remove(markOpenButton);
+            removeWidget(acceptButton);
+            removeWidget(declineButton);
+            removeWidget(counterButton);
+            removeWidget(markOpenButton);
         }
 
-        context.drawText(textRenderer, "\u00A7eChannel: \u00A7f" + selectedTrade.getChannelName(),
+        context.drawString(font, "\u00A7eChannel: \u00A7f" + selectedTrade.getChannelName(),
                 contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
         contentY += 12;
 
-        context.drawText(textRenderer, "\u00A7eFrom: \u00A7f" + selectedTrade.getFromCiv(),
+        context.drawString(font, "\u00A7eFrom: \u00A7f" + selectedTrade.getFromCiv(),
                 contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
         contentY += 12;
 
-        context.drawText(textRenderer, "\u00A7eTo: \u00A7f" + selectedTrade.getToCiv(),
+        context.drawString(font, "\u00A7eTo: \u00A7f" + selectedTrade.getToCiv(),
                 contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
         contentY += 12;
 
-        context.drawText(textRenderer, "\u00A7eTime: \u00A7f" + selectedTrade.getTimestamp().format(TIME_FORMATTER),
+        context.drawString(font, "\u00A7eTime: \u00A7f" + selectedTrade.getTimestamp().format(TIME_FORMATTER),
                 contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
         contentY += 12;
 
         int statusColor = selectedTrade.getStatus().getColor();
         String statusText = selectedTrade.getStatus().getDisplayName();
-        context.drawText(textRenderer, "\u00A7eStatus: ", contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
-        context.drawText(textRenderer, statusText, contentX + textRenderer.getWidth("\u00A7eStatus: "), contentY, statusColor, false);
+        context.drawString(font, "\u00A7eStatus: ", contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
+        context.drawString(font, statusText, contentX + font.width("\u00A7eStatus: "), contentY, statusColor, false);
         contentY += 16;
 
-        context.drawText(textRenderer, "\u00A76Offering:", contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
+        context.drawString(font, "\u00A76Offering:", contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
         contentY += 12;
 
         if (selectedTrade.getOfferingItems().isEmpty()) {
-            context.drawText(textRenderer, "  \u00A77" + selectedTrade.getOfferingRaw(),
+            context.drawString(font, "  \u00A77" + selectedTrade.getOfferingRaw(),
                     contentX + 10, contentY, TelegraphTheme.TEXT_PRIMARY, false);
             contentY += 12;
         } else {
             for (TradeItem item : selectedTrade.getOfferingItems()) {
-                context.drawText(textRenderer, "  \u00A7f\u2022 " + item.toString(),
+                context.drawString(font, "  \u00A7f\u2022 " + item.toString(),
                         contentX + 10, contentY, TelegraphTheme.TEXT_PRIMARY, false);
                 contentY += 12;
             }
         }
 
         contentY += 6;
-        context.drawText(textRenderer, "\u00A76Requesting:", contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
+        context.drawString(font, "\u00A76Requesting:", contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
         contentY += 12;
 
         if (selectedTrade.getRequestingItems().isEmpty()) {
             String requesting = selectedTrade.getRequestingRaw().isEmpty() ?
                     "Anything / Open to offers" : selectedTrade.getRequestingRaw();
-            context.drawText(textRenderer, "  \u00A77" + requesting,
+            context.drawString(font, "  \u00A77" + requesting,
                     contentX + 10, contentY, TelegraphTheme.TEXT_PRIMARY, false);
             contentY += 12;
         } else {
             for (TradeItem item : selectedTrade.getRequestingItems()) {
-                context.drawText(textRenderer, "  \u00A7f\u2022 " + item.toString(),
+                context.drawString(font, "  \u00A7f\u2022 " + item.toString(),
                         contentX + 10, contentY, TelegraphTheme.TEXT_PRIMARY, false);
                 contentY += 12;
             }
         }
 
         contentY += 10;
-        context.drawText(textRenderer, "\u00A7eOriginal Message:", contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
+        context.drawString(font, "\u00A7eOriginal Message:", contentX, contentY, TelegraphTheme.TEXT_PRIMARY, false);
         contentY += 12;
-        context.drawText(textRenderer, "\u00A77" + selectedTrade.getOriginalMessage(),
+        context.drawString(font, "\u00A77" + selectedTrade.getOriginalMessage(),
                 contentX + 10, contentY, TelegraphTheme.TEXT_PRIMARY, false);
         contentY += 16;
 
@@ -364,67 +364,67 @@ public class TradesDashboardScreen extends TelegraphScreen {
         int buttonY = contentY + 10;
         int buttonWidth = Math.min(100, (panelWidth - layout.padding * 4) / 2);
 
-        acceptButton = Buttons.create(Text.literal("\u2713 Accept"), contentX, buttonY,
+        acceptButton = Buttons.create(Component.literal("\u2713 Accept"), contentX, buttonY,
                 buttonWidth, layout, button -> {
                     selectedTrade.setStatus(TradeStatus.ACCEPTED);
                     tradeManager.saveTradeStatuses();
                     updateTradeList();
                     respondToTrade("^acpt");
                 });
-        addDrawableChild(acceptButton);
+        addRenderableWidget(acceptButton);
 
-        declineButton = Buttons.create(Text.literal("\u2717 Decline"), contentX + buttonWidth + layout.spacing, buttonY,
+        declineButton = Buttons.create(Component.literal("\u2717 Decline"), contentX + buttonWidth + layout.spacing, buttonY,
                 buttonWidth, layout, button -> {
                     selectedTrade.setStatus(TradeStatus.DECLINED);
                     tradeManager.saveTradeStatuses();
                     updateTradeList();
                     respondToTrade("^-acpt");
                 });
-        addDrawableChild(declineButton);
+        addRenderableWidget(declineButton);
 
-        counterButton = Buttons.create(Text.literal("\u2194 Counter"), contentX, buttonY + layout.buttonHeight + layout.spacing,
+        counterButton = Buttons.create(Component.literal("\u2194 Counter"), contentX, buttonY + layout.buttonHeight + layout.spacing,
                 buttonWidth * 2 + layout.spacing, layout, button -> {
                     selectedTrade.setStatus(TradeStatus.COUNTER);
                     tradeManager.saveTradeStatuses();
                     updateTradeList();
                     openCounterOffer();
                 });
-        addDrawableChild(counterButton);
+        addRenderableWidget(counterButton);
 
-        markOpenButton = Buttons.create(Text.literal("\u27F2 Mark as Open"), contentX,
+        markOpenButton = Buttons.create(Component.literal("\u27F2 Mark as Open"), contentX,
                 buttonY + layout.buttonHeight * 2 + layout.spacing * 2,
                 buttonWidth * 2 + layout.spacing, layout, button -> {
                     selectedTrade.setStatus(TradeStatus.OPEN);
                     tradeManager.saveTradeStatuses();
                     updateTradeList();
                 });
-        addDrawableChild(markOpenButton);
+        addRenderableWidget(markOpenButton);
     }
 
     private void respondToTrade(String response) {
-        if (client == null || selectedTrade == null) return;
+        if (minecraft == null || selectedTrade == null) return;
 
         ChannelSettings settings = channel.getOrCreateSettings(selectedTrade.getChannelId());
-        client.setScreen(new CarniteComposerScreen(this, channel, selectedTrade.getChannelId(), settings, response, "white"));
+        minecraft.setScreen(new CarniteComposerScreen(this, channel, selectedTrade.getChannelId(), settings, response, "white"));
     }
 
     private void openCounterOffer() {
-        if (client == null || selectedTrade == null) return;
+        if (minecraft == null || selectedTrade == null) return;
 
         ChannelSettings settings = channel.getOrCreateSettings(selectedTrade.getChannelId());
         String counterTemplate = "; _:";
-        client.setScreen(new CarniteComposerScreen(this, channel, selectedTrade.getChannelId(), settings, counterTemplate, "yellow"));
+        minecraft.setScreen(new CarniteComposerScreen(this, channel, selectedTrade.getChannelId(), settings, counterTemplate, "yellow"));
     }
 
     @Override
-    public void close() {
-        if (client != null) {
-            client.setScreen(parent);
+    public void onClose() {
+        if (minecraft != null) {
+            minecraft.setScreen(parent);
         }
     }
 
     private class TradeListWidget extends TelegraphListWidget<TradeEntry> {
-        public TradeListWidget(net.minecraft.client.MinecraftClient client, int width, int height, int y, int itemHeight) {
+        public TradeListWidget(net.minecraft.client.Minecraft client, int width, int height, int y, int itemHeight) {
             super(client, width, height, y, itemHeight);
         }
     }
@@ -437,7 +437,7 @@ public class TradesDashboardScreen extends TelegraphScreen {
         }
 
         @Override
-        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight,
+        public void render(GuiGraphics context, int index, int y, int x, int entryWidth, int entryHeight,
                           int mouseX, int mouseY, boolean hovered, float tickDelta) {
 
             renderBackground(context, x, y, entryWidth, entryHeight, hovered, trade == selectedTrade);
@@ -445,14 +445,14 @@ public class TradesDashboardScreen extends TelegraphScreen {
             int statusColor = trade.getStatus().getColor();
             String statusText = trade.getStatus().getDisplayName();
 
-            context.drawText(textRenderer, trade.getChannelName(), x + 5, y + 2, TelegraphTheme.TEXT_PRIMARY, false);
-            context.drawText(textRenderer, statusText, x + 5, y + 13, statusColor, false);
+            context.drawString(font, trade.getChannelName(), x + 5, y + 2, TelegraphTheme.TEXT_PRIMARY, false);
+            context.drawString(font, statusText, x + 5, y + 13, statusColor, false);
 
             String offeringPreview = trade.getOfferingRaw();
             if (offeringPreview.length() > 20) {
                 offeringPreview = offeringPreview.substring(0, 20) + "...";
             }
-            context.drawText(textRenderer, "\u00A76\u2192 \u00A7f" + offeringPreview, x + 5, y + 26, TelegraphTheme.TEXT_PRIMARY, false);
+            context.drawString(font, "\u00A76\u2192 \u00A7f" + offeringPreview, x + 5, y + 26, TelegraphTheme.TEXT_PRIMARY, false);
 
             String requestingPreview = trade.getRequestingRaw();
             if (requestingPreview.isEmpty()) {
@@ -460,10 +460,10 @@ public class TradesDashboardScreen extends TelegraphScreen {
             } else if (requestingPreview.length() > 20) {
                 requestingPreview = requestingPreview.substring(0, 20) + "...";
             }
-            context.drawText(textRenderer, "\u00A76\u2190 \u00A7f" + requestingPreview, x + 5, y + 38, TelegraphTheme.TEXT_PRIMARY, false);
+            context.drawString(font, "\u00A76\u2190 \u00A7f" + requestingPreview, x + 5, y + 38, TelegraphTheme.TEXT_PRIMARY, false);
 
             String timeStr = trade.getTimestamp().format(TIME_FORMATTER);
-            context.drawText(textRenderer, timeStr, x + entryWidth - 40, y + 2, TelegraphTheme.TEXT_MUTED, false);
+            context.drawString(font, timeStr, x + entryWidth - 40, y + 2, TelegraphTheme.TEXT_MUTED, false);
         }
 
         @Override
@@ -473,8 +473,8 @@ public class TradesDashboardScreen extends TelegraphScreen {
         }
 
         @Override
-        public Text getNarration() {
-            return Text.literal("Trade: " + trade.getOfferingRaw());
+        public Component getNarration() {
+            return Component.literal("Trade: " + trade.getOfferingRaw());
         }
     }
 }

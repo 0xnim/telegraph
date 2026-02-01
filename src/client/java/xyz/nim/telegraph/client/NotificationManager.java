@@ -1,9 +1,9 @@
 package xyz.nim.telegraph.client;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.toast.SystemToast;
-import net.minecraft.text.Text;
-import net.minecraft.sound.SoundEvents;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.toasts.SystemToast;
+import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
 import xyz.nim.telegraph.client.protocol.CarniteProtocol;
 
 public class NotificationManager {
@@ -41,7 +41,7 @@ public class NotificationManager {
     }
 
     private void showDecorationToast(MapDecorationChangeEvent event, ChannelSettings settings) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null) return;
 
         String channelName = channel.getDisplayName(event.mapId());
@@ -52,14 +52,14 @@ public class NotificationManager {
         String title = getNotificationTitle(event.changeType(), channelName);
         String description = formatNotificationMessage(bannerText, bannerColor, settings);
 
-        SystemToast.Type toastType = getToastTypeForChange(decoration);
+        SystemToast.SystemToastId toastType = getToastTypeForChange(decoration);
 
-        client.getToastManager().add(
-            SystemToast.create(
+        client.getToastManager().addToast(
+            SystemToast.multiline(
                 client,
                 toastType,
-                Text.literal(title),
-                Text.literal(description)
+                Component.literal(title),
+                Component.literal(description)
             )
         );
     }
@@ -125,12 +125,12 @@ public class NotificationManager {
         return "";
     }
 
-    private SystemToast.Type getToastTypeForChange(DecorationSnapshot decoration) {
+    private SystemToast.SystemToastId getToastTypeForChange(DecorationSnapshot decoration) {
         if (decoration != null && decoration.type() != null && decoration.type().contains("red")) {
-            return SystemToast.Type.NARRATOR_TOGGLE;
+            return SystemToast.SystemToastId.NARRATOR_TOGGLE;
         }
 
-        return SystemToast.Type.PERIODIC_NOTIFICATION;
+        return SystemToast.SystemToastId.PERIODIC_NOTIFICATION;
     }
 
     private String truncateText(String text, int maxLength) {
@@ -140,7 +140,7 @@ public class NotificationManager {
     }
 
     private void playNotificationSound(MapDecorationChangeEvent event, ChannelSettings settings) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.player == null) return;
 
         DecorationSnapshot decoration = event.decoration();
@@ -149,9 +149,9 @@ public class NotificationManager {
                           decoration.type().contains("red");
 
         if (isUrgent) {
-            client.player.playSound(SoundEvents.BLOCK_BELL_USE, 0.7f, 1.2f);
+            client.player.playSound(SoundEvents.BELL_BLOCK, 0.7f, 1.2f);
         } else {
-            client.player.playSound(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 0.5f, 1.0f);
+            client.player.playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.5f, 1.0f);
         }
     }
 }
